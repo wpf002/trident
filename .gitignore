@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+data/trident.db
+data/trident.db-shm
+data/trident.db-wal
+*.js.map
+*.d.ts
+.DS_Store

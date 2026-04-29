@@ -1,0 +1,28 @@
+{
+  "name": "@trident/mcp-server",
+  "version": "1.0.0",
+  "description": "Shared MCP server for Claude, ChatGPT, and Perplexity",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "trident-server": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^9.4.3",
+    "tavily": "^0.1.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3"
+  }
+}
