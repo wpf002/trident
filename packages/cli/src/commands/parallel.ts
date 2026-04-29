@@ -1,8 +1,13 @@
-import chalk from "chalk";
+import chalk, { ChalkInstance } from "chalk";
 import ora from "ora";
-import { AI_MAP, AIMessage, AIName, DEFAULT_ORDER } from "../lib/clients.js";
+import { nanoid } from "nanoid";
+import { AI_MAP, AIMessage, AIName, AIResponse, DEFAULT_ORDER } from "../lib/clients.js";
+import { logSessionRun, SessionRunResponse } from "../lib/db.js";
+import { injectProjectContext } from "../lib/context.js";
+import { formatRunMarkdown, writeRunOutput } from "../lib/output.js";
+import { runDiffSynthesis, runConfidenceScoring, ConfidenceReport } from "../lib/synthesis.js";
 
-const AI_COLORS: Record<AIName, chalk.Chalk> = {
+const AI_COLORS: Record<AIName, ChalkInstance> = {
   claude: chalk.hex("#D4A017"),
   gpt: chalk.hex("#10A37F"),
   perplexity: chalk.hex("#6C63FF"),
@@ -14,6 +19,84 @@ const AI_LABELS: Record<AIName, string> = {
   perplexity: "Perplexity",
 };
 
+function aiDisplayName(ai: string): string {
+  return (AI_LABELS as Record<string, string>)[ai] ?? ai.toUpperCase();
+}
+
+function printConfidenceReport(scoring: {
+  report?: ConfidenceReport;
+  error?: string;
+  raw?: string;
+}) {
+  console.log(chalk.bold.hex("#6C63FF")("┌─ Confidence Report " + "─".repeat(40)));
+  if (scoring.error || !scoring.report) {
+    console.log(chalk.red(`  ${scoring.error ?? "No report produced."}`));
+    if (scoring.raw) {
+      console.log(chalk.gray(`  Raw: ${scoring.raw.slice(0, 200)}${scoring.raw.length > 200 ? "…" : ""}`));
+    }
+    console.log(chalk.bold.hex("#6C63FF")("└" + "─".repeat(50)) + "\n");
+    return;
+  }
+  const r = scoring.report;
+  for (const s of r.scores) {
+    const bar = "█".repeat(Math.round(s.confidence / 5)) + "░".repeat(20 - Math.round(s.confidence / 5));
+    const color =
+      s.confidence >= 75 ? chalk.green : s.confidence >= 50 ? chalk.yellow : chalk.red;
+    console.log(
+      `  ${chalk.bold(aiDisplayName(s.ai).padEnd(12))} ${color(bar)} ${color(String(s.confidence).padStart(3))}/100`
+    );
+    console.log(chalk.gray(`    ${s.rationale}`));
+  }
+  const agreementColor =
+    r.agreement === "high" ? chalk.green : r.agreement === "medium" ? chalk.yellow : chalk.red;
+  console.log(`\n  ${chalk.gray("Agreement:")} ${agreementColor(r.agreement)}`);
+  if (r.consensus.length) {
+    console.log(chalk.gray("  Consensus:"));
+    for (const c of r.consensus) console.log(`    • ${c}`);
+  }
+  if (r.disagreement.length) {
+    console.log(chalk.gray("  Disagreement:"));
+    for (const d of r.disagreement) console.log(`    • ${d}`);
+  }
+  console.log(chalk.bold.hex("#6C63FF")("└" + "─".repeat(50)) + "\n");
+}
+
+function formatConfidenceReportMarkdown(report: ConfidenceReport): string {
+  const lines: string[] = [];
+  lines.push("| AI | Confidence | Rationale |");
+  lines.push("|---|---|---|");
+  for (const s of report.scores) {
+    const safeRationale = s.rationale.replace(/\|/g, "\\|").replace(/\n/g, " ");
+    lines.push(`| ${aiDisplayName(s.ai)} | ${s.confidence}/100 | ${safeRationale} |`);
+  }
+  lines.push("");
+  lines.push(`**Overall agreement:** ${report.agreement}`);
+  if (report.consensus.length) {
+    lines.push("");
+    lines.push("**Consensus:**");
+    for (const c of report.consensus) lines.push(`- ${c}`);
+  }
+  if (report.disagreement.length) {
+    lines.push("");
+    lines.push("**Disagreement:**");
+    for (const d of report.disagreement) lines.push(`- ${d}`);
+  }
+  return lines.join("\n");
+}
+
+export interface ParallelRunResult {
+  id: string;
+  prompt: string;
+  ais: AIName[];
+  results: AIResponse[];
+  responses: SessionRunResponse[];
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  system_prompt: string | undefined;
+  project: string | undefined;
+}
+
 export async function runParallel(
   prompt: string,
   options: {
@@ -21,19 +104,31 @@ export async function runParallel(
     system?: string;
     history?: AIMessage[];
     quiet?: boolean;
+    project?: string;
+    persist?: boolean;
+    metadata?: Record<string, unknown>;
+    output?: string;
+    diff?: boolean;
+    score?: boolean;
   } = {}
-) {
+): Promise<ParallelRunResult> {
   const ais = options.ais ?? DEFAULT_ORDER;
   const messages: AIMessage[] = [
     ...(options.history ?? []),
     { role: "user", content: prompt },
   ];
 
+  const effectiveSystem = injectProjectContext(options.system, options.project);
+
   if (!options.quiet) {
     console.log("\n" + chalk.bold.white("━".repeat(60)));
     console.log(chalk.bold.white("  TRIDENT — PARALLEL MODE"));
     console.log(chalk.bold.white("━".repeat(60)));
     console.log(chalk.gray(`  Prompt: ${prompt.slice(0, 80)}${prompt.length > 80 ? "…" : ""}`));
+    if (options.project) {
+      const injected = effectiveSystem !== options.system;
+      console.log(chalk.gray(`  Project: ${options.project}${injected ? " (context injected)" : " (no entries)"}`));
+    }
     console.log(chalk.bold.white("━".repeat(60)) + "\n");
   }
 
@@ -44,9 +139,31 @@ export async function runParallel(
         color: "white",
       }).start();
 
+  const runId = nanoid(12);
+  const startedAt = new Date().toISOString();
+  const runStart = Date.now();
+
+  const responses: SessionRunResponse[] = [];
   const results = await Promise.all(
-    ais.map((ai) => AI_MAP[ai](messages, options.system))
+    ais.map(async (ai) => {
+      const aiStart = Date.now();
+      const aiStartedAt = new Date().toISOString();
+      const result = await AI_MAP[ai](messages, effectiveSystem);
+      const aiFinishedAt = new Date().toISOString();
+      responses.push({
+        ai,
+        content: result.content,
+        error: result.error,
+        duration_ms: Date.now() - aiStart,
+        started_at: aiStartedAt,
+        finished_at: aiFinishedAt,
+      });
+      return result;
+    })
   );
+
+  const finishedAt = new Date().toISOString();
+  const durationMs = Date.now() - runStart;
 
   spinner?.stop();
 
@@ -73,5 +190,119 @@ export async function runParallel(
     }
   }
 
-  return results;
+  const extraSections: { title: string; body: string }[] = [];
+  const metadata: Record<string, unknown> = { ...(options.metadata ?? {}) };
+
+  if (options.diff) {
+    const spin = options.quiet
+      ? null
+      : ora({ text: "Synthesizing diff with Claude…", color: "white" }).start();
+    const diff = await runDiffSynthesis(prompt, responses);
+    spin?.stop();
+    if (!options.quiet) {
+      console.log(chalk.bold.hex("#D4A017")("┌─ Synthesis " + "─".repeat(48)));
+      if (diff.error) {
+        console.log(chalk.red(`  ${diff.error}`));
+      } else {
+        const lines = diff.content.split("\n");
+        for (const line of lines) console.log(`  ${line}`);
+      }
+      console.log(chalk.bold.hex("#D4A017")("└" + "─".repeat(50)) + "\n");
+    }
+    if (!diff.error) {
+      extraSections.push({ title: "Synthesis", body: diff.content });
+      metadata.synthesis = { content: diff.content, duration_ms: diff.duration_ms };
+    } else {
+      metadata.synthesis_error = diff.error;
+    }
+  }
+
+  if (options.score) {
+    const spin = options.quiet
+      ? null
+      : ora({ text: "Scoring confidence with Claude…", color: "white" }).start();
+    const scoring = await runConfidenceScoring(prompt, responses);
+    spin?.stop();
+    if (!options.quiet) {
+      printConfidenceReport(scoring);
+    }
+    if (scoring.report) {
+      extraSections.push({
+        title: "Confidence Report",
+        body: formatConfidenceReportMarkdown(scoring.report),
+      });
+      metadata.confidence = scoring.report;
+    } else if (scoring.error) {
+      metadata.confidence_error = scoring.error;
+      if (scoring.raw) metadata.confidence_raw = scoring.raw;
+    }
+  }
+
+  if (options.persist !== false) {
+    try {
+      logSessionRun({
+        id: runId,
+        mode: "parallel",
+        prompt,
+        project: options.project ?? null,
+        ais,
+        responses,
+        duration_ms: durationMs,
+        preset: null,
+        system_prompt: options.system ?? null,
+        metadata: Object.keys(metadata).length > 0 ? metadata : null,
+        started_at: startedAt,
+        finished_at: finishedAt,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!options.quiet) {
+        console.log(chalk.gray(`  (session not logged: ${message})`));
+      }
+    }
+  }
+
+  if (options.output) {
+    try {
+      const md = formatRunMarkdown(
+        {
+          mode: "parallel",
+          id: runId,
+          prompt,
+          ais,
+          responses,
+          started_at: startedAt,
+          finished_at: finishedAt,
+          duration_ms: durationMs,
+          project: options.project,
+          system_prompt: effectiveSystem,
+        },
+        extraSections
+      );
+      const written = writeRunOutput(options.output, md);
+      if (!options.quiet) {
+        console.log(chalk.gray(`  Output written: ${written}`));
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(chalk.red(`  Failed to write output: ${message}`));
+    }
+  }
+
+  if (!options.quiet) {
+    console.log(chalk.gray(`  Session ID: ${runId}  •  ${durationMs}ms total\n`));
+  }
+
+  return {
+    id: runId,
+    prompt,
+    ais,
+    results,
+    responses,
+    started_at: startedAt,
+    finished_at: finishedAt,
+    duration_ms: durationMs,
+    system_prompt: options.system,
+    project: options.project,
+  };
 }

@@ -1,8 +1,15 @@
-import chalk from "chalk";
+import chalk, { ChalkInstance } from "chalk";
 import ora from "ora";
-import { AI_MAP, AIMessage, AIName, DEFAULT_ORDER } from "../lib/clients.js";
+import { nanoid } from "nanoid";
+import { AI_MAP, AIMessage, AIName, AIResponse, DEFAULT_ORDER } from "../lib/clients.js";
+import { CHAIN_PRESETS } from "@trident/core";
+import { logSessionRun, SessionRunResponse } from "../lib/db.js";
+import { buildProjectContextBlock } from "../lib/context.js";
+import { formatRunMarkdown, writeRunOutput } from "../lib/output.js";
 
-const AI_COLORS: Record<AIName, chalk.Chalk> = {
+export { CHAIN_PRESETS };
+
+const AI_COLORS: Record<AIName, ChalkInstance> = {
   claude: chalk.hex("#D4A017"),
   gpt: chalk.hex("#10A37F"),
   perplexity: chalk.hex("#6C63FF"),
@@ -14,36 +21,19 @@ const AI_LABELS: Record<AIName, string> = {
   perplexity: "Perplexity",
 };
 
-// Preset chain configs for common workflows
-export const CHAIN_PRESETS: Record<string, { order: AIName[]; description: string; systemPrompts?: Partial<Record<AIName, string>> }> = {
-  "draft-refine-verify": {
-    order: ["claude", "gpt", "perplexity"],
-    description: "Claude drafts → GPT refines → Perplexity fact-checks with live search",
-    systemPrompts: {
-      claude: "You are drafting an initial response. Be thorough and well-structured.",
-      gpt: "You are refining a draft. Improve clarity, flow, and completeness. The previous draft is provided as context.",
-      perplexity: "You are fact-checking and enriching a refined response with current, accurate information. Flag anything outdated or incorrect.",
-    },
-  },
-  "research-analyze-summarize": {
-    order: ["perplexity", "claude", "gpt"],
-    description: "Perplexity researches → Claude analyzes → GPT summarizes",
-    systemPrompts: {
-      perplexity: "Research this topic thoroughly using your web access. Provide sources.",
-      claude: "Analyze the research provided. Extract key insights and identify patterns.",
-      gpt: "Create a concise, actionable summary of the analysis. Bullet key takeaways.",
-    },
-  },
-  "attack-defend-judge": {
-    order: ["gpt", "claude", "perplexity"],
-    description: "GPT argues for → Claude argues against → Perplexity judges",
-    systemPrompts: {
-      gpt: "Argue strongly in FAVOR of the proposition provided. Steel-man the position.",
-      claude: "Argue strongly AGAINST the proposition provided. Steel-man the opposition.",
-      perplexity: "Judge both arguments fairly using evidence and reasoning. Provide a balanced verdict.",
-    },
-  },
-};
+export interface ChainRunResult {
+  id: string;
+  prompt: string;
+  order: AIName[];
+  results: AIResponse[];
+  responses: SessionRunResponse[];
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  preset: string | undefined;
+  system_prompt: string | undefined;
+  project: string | undefined;
+}
 
 export async function runChain(
   prompt: string,
@@ -52,8 +42,13 @@ export async function runChain(
     preset?: string;
     system?: string;
     showIntermediate?: boolean;
+    project?: string;
+    persist?: boolean;
+    quiet?: boolean;
+    metadata?: Record<string, unknown>;
+    output?: string;
   } = {}
-) {
+): Promise<ChainRunResult> {
   let order: AIName[];
   let systemPrompts: Partial<Record<AIName, string>> = {};
 
@@ -61,19 +56,33 @@ export async function runChain(
     const preset = CHAIN_PRESETS[options.preset];
     order = preset.order;
     systemPrompts = preset.systemPrompts ?? {};
-    console.log(chalk.gray(`\n  Using preset: ${options.preset} — ${preset.description}\n`));
+    if (!options.quiet) {
+      console.log(chalk.gray(`\n  Using preset: ${options.preset} — ${preset.description}\n`));
+    }
   } else {
     order = options.order ?? DEFAULT_ORDER;
   }
 
-  console.log("\n" + chalk.bold.white("━".repeat(60)));
-  console.log(chalk.bold.white("  TRIDENT — CHAIN MODE"));
-  console.log(chalk.bold.white("━".repeat(60)));
-  console.log(chalk.gray(`  Order: ${order.map((a) => AI_LABELS[a]).join(" → ")}`));
-  console.log(chalk.gray(`  Prompt: ${prompt.slice(0, 80)}${prompt.length > 80 ? "…" : ""}`));
-  console.log(chalk.bold.white("━".repeat(60)) + "\n");
+  const projectBlock = options.project ? buildProjectContextBlock(options.project) : null;
 
-  const allResults = [];
+  if (!options.quiet) {
+    console.log("\n" + chalk.bold.white("━".repeat(60)));
+    console.log(chalk.bold.white("  TRIDENT — CHAIN MODE"));
+    console.log(chalk.bold.white("━".repeat(60)));
+    console.log(chalk.gray(`  Order: ${order.map((a) => AI_LABELS[a]).join(" → ")}`));
+    console.log(chalk.gray(`  Prompt: ${prompt.slice(0, 80)}${prompt.length > 80 ? "…" : ""}`));
+    if (options.project) {
+      console.log(chalk.gray(`  Project: ${options.project}${projectBlock ? " (context injected)" : " (no entries)"}`));
+    }
+    console.log(chalk.bold.white("━".repeat(60)) + "\n");
+  }
+
+  const runId = nanoid(12);
+  const startedAt = new Date().toISOString();
+  const runStart = Date.now();
+
+  const allResults: AIResponse[] = [];
+  const responses: SessionRunResponse[] = [];
   const conversationHistory: AIMessage[] = [{ role: "user", content: prompt }];
 
   for (let i = 0; i < order.length; i++) {
@@ -82,16 +91,16 @@ export async function runChain(
     const label = AI_LABELS[ai] ?? ai;
     const isLast = i === order.length - 1;
 
-    const spinner = ora({
-      text: `${label} thinking…`,
-      color: "white",
-    }).start();
+    const spinner = options.quiet
+      ? null
+      : ora({
+          text: `${label} thinking…`,
+          color: "white",
+        }).start();
 
-    // Build context: include previous AI outputs as part of the conversation
     const contextMessages: AIMessage[] = [...conversationHistory];
 
     if (i > 0) {
-      // Remind the AI of its role in the chain
       const prevLabel = AI_LABELS[order[i - 1]];
       contextMessages.push({
         role: "user",
@@ -99,7 +108,7 @@ export async function runChain(
       });
     }
 
-    const systemPrompt =
+    const baseSystemPrompt =
       systemPrompts[ai] ??
       options.system ??
       (i === 0
@@ -108,35 +117,120 @@ export async function runChain(
         ? "You are the final AI in a chain. Synthesize all previous responses into a definitive answer."
         : "You are in the middle of a chain. Build on the previous response.");
 
+    const systemPrompt = projectBlock
+      ? `${projectBlock}\n\n---\n\n${baseSystemPrompt}`
+      : baseSystemPrompt;
+
+    const aiStart = Date.now();
+    const aiStartedAt = new Date().toISOString();
     const result = await AI_MAP[ai](contextMessages, systemPrompt);
-    spinner.stop();
+    const aiFinishedAt = new Date().toISOString();
+    spinner?.stop();
 
     allResults.push(result);
+    responses.push({
+      ai,
+      content: result.content,
+      error: result.error,
+      duration_ms: Date.now() - aiStart,
+      started_at: aiStartedAt,
+      finished_at: aiFinishedAt,
+    });
 
-    console.log(color.bold(`┌─ ${label} (${result.duration_ms}ms) — Step ${i + 1}/${order.length} ${"─".repeat(25 - label.length)}`));
+    if (!options.quiet) {
+      console.log(color.bold(`┌─ ${label} (${result.duration_ms}ms) — Step ${i + 1}/${order.length} ${"─".repeat(25 - label.length)}`));
+
+      if (result.error) {
+        console.log(chalk.red(`  Error: ${result.error}`));
+        console.log(color.bold("└" + "─".repeat(50)) + "\n");
+      } else if (options.showIntermediate || isLast) {
+        const lines = result.content.split("\n");
+        for (const line of lines) {
+          console.log(`  ${line}`);
+        }
+        console.log(color.bold("└" + "─".repeat(50)) + "\n");
+      } else {
+        console.log(chalk.gray("  [output passed to next AI — use --show-intermediate to display]"));
+        console.log(color.bold("└" + "─".repeat(50)) + "\n");
+      }
+    }
 
     if (result.error) {
-      console.log(chalk.red(`  Error: ${result.error}`));
-      console.log(color.bold("└" + "─".repeat(50)) + "\n");
-      // Skip this AI's output from history but continue chain
       continue;
     }
 
-    if (options.showIntermediate || isLast) {
-      const lines = result.content.split("\n");
-      for (const line of lines) {
-        console.log(`  ${line}`);
-      }
-    } else {
-      console.log(chalk.gray("  [output passed to next AI — use --show-intermediate to display]"));
-    }
-    console.log(color.bold("└" + "─".repeat(50)) + "\n");
-
-    // Add this AI's output to the conversation history for the next AI
     conversationHistory.push({ role: "assistant", content: result.content });
   }
 
-  return allResults;
+  const finishedAt = new Date().toISOString();
+  const durationMs = Date.now() - runStart;
+
+  if (options.persist !== false) {
+    try {
+      logSessionRun({
+        id: runId,
+        mode: "chain",
+        prompt,
+        project: options.project ?? null,
+        ais: order,
+        responses,
+        duration_ms: durationMs,
+        preset: options.preset ?? null,
+        system_prompt: options.system ?? null,
+        metadata: options.metadata ?? null,
+        started_at: startedAt,
+        finished_at: finishedAt,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!options.quiet) {
+        console.log(chalk.gray(`  (session not logged: ${message})`));
+      }
+    }
+  }
+
+  if (options.output) {
+    try {
+      const md = formatRunMarkdown({
+        mode: "chain",
+        id: runId,
+        prompt,
+        order,
+        responses,
+        started_at: startedAt,
+        finished_at: finishedAt,
+        duration_ms: durationMs,
+        project: options.project,
+        preset: options.preset,
+        system_prompt: options.system,
+      });
+      const written = writeRunOutput(options.output, md);
+      if (!options.quiet) {
+        console.log(chalk.gray(`  Output written: ${written}`));
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(chalk.red(`  Failed to write output: ${message}`));
+    }
+  }
+
+  if (!options.quiet) {
+    console.log(chalk.gray(`  Session ID: ${runId}  •  ${durationMs}ms total\n`));
+  }
+
+  return {
+    id: runId,
+    prompt,
+    order,
+    results: allResults,
+    responses,
+    started_at: startedAt,
+    finished_at: finishedAt,
+    duration_ms: durationMs,
+    preset: options.preset,
+    system_prompt: options.system,
+    project: options.project,
+  };
 }
 
 export function listPresets() {

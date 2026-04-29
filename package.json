@@ -7,10 +7,17 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspace=packages/core && npm run build --workspace=packages/mcp-server && npm run build --workspace=packages/watcher && npm run build --workspace=packages/scheduler && npm run build --workspace=packages/ui-server && npm run build --workspace=packages/ui && npm run build --workspace=packages/cli",
+    "build:server": "npm run build --workspace=packages/mcp-server",
+    "build:cli": "npm run build --workspace=packages/cli",
+    "build:ui": "npm run build --workspace=packages/ui",
     "dev:server": "npm run dev --workspace=packages/mcp-server",
     "dev:cli": "npm run dev --workspace=packages/cli",
-    "start:server": "npm run start --workspace=packages/mcp-server"
+    "dev:ui": "npm run dev --workspace=packages/ui",
+    "start:server": "npm run start --workspace=packages/mcp-server",
+    "start:ui": "npm run start --workspace=packages/ui-server",
+    "watch": "npm run start --workspace=packages/watcher",
+    "schedule:daemon": "node packages/scheduler/dist/index.js daemon"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -13,11 +13,20 @@ import { memoryTools, handleMemoryTool } from "./tools/memory.js";
 import { searchTools, handleSearchTool } from "./tools/search.js";
 import { fileTools, handleFileTool } from "./tools/files.js";
 import { apiTools, handleApiTool } from "./tools/api.js";
+import { perplexityTools, handlePerplexityTool } from "./tools/perplexity.js";
+import { googleTools, handleGoogleTool } from "./tools/google.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 
-const allTools = [...memoryTools, ...searchTools, ...fileTools, ...apiTools];
+const allTools = [
+  ...memoryTools,
+  ...searchTools,
+  ...fileTools,
+  ...apiTools,
+  ...perplexityTools,
+  ...googleTools,
+];
 
 const server = new Server(
   {
@@ -52,6 +61,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       result = handleFileTool(name, safeArgs);
     } else if (apiTools.some((t) => t.name === name)) {
       result = await handleApiTool(name, safeArgs);
+    } else if (perplexityTools.some((t) => t.name === name)) {
+      result = await handlePerplexityTool(name, safeArgs);
+    } else if (googleTools.some((t) => t.name === name)) {
+      result = await handleGoogleTool(name, safeArgs);
     } else {
       throw new Error(`Unknown tool: ${name}`);
     }

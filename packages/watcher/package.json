@@ -1,12 +1,9 @@
 {
-  "name": "@trident/mcp-server",
+  "name": "@trident/watcher",
   "version": "1.0.0",
-  "description": "Shared MCP server for Claude, ChatGPT, and Perplexity",
+  "description": "File watcher that auto-indexes data/docs/ into Trident memory",
   "type": "module",
   "main": "dist/index.js",
-  "bin": {
-    "trident-server": "./dist/index.js"
-  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -14,12 +11,11 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@anthropic-ai/sdk": "^0.27.0",
     "better-sqlite3": "^12.9.0",
-    "dotenv": "^16.4.5",
-    "googleapis": "^144.0.0",
-    "google-auth-library": "^9.14.0",
-    "zod": "^3.22.4"
+    "chokidar": "^3.6.0",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

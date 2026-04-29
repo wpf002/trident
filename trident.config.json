@@ -1,0 +1,8 @@
+{
+  "routing": {
+    "research": ["perplexity", "claude", "gpt"],
+    "code": ["claude", "gpt", "perplexity"],
+    "summarize": ["gpt", "claude", "perplexity"],
+    "default": ["claude", "gpt", "perplexity"]
+  }
+}

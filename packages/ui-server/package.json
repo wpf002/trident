@@ -1,11 +1,11 @@
 {
-  "name": "@trident/mcp-server",
+  "name": "@trident/ui-server",
   "version": "1.0.0",
-  "description": "Shared MCP server for Claude, ChatGPT, and Perplexity",
+  "description": "Express API server bridging the Trident UI to the SQLite DB and AI clients",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "trident-server": "./dist/index.js"
+    "trident-ui-server": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -14,15 +14,17 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@trident/core": "1.0.0",
     "better-sqlite3": "^12.9.0",
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "googleapis": "^144.0.0",
-    "google-auth-library": "^9.14.0",
-    "zod": "^3.22.4"
+    "nanoid": "^5.0.7"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
     "@types/node": "^20.11.5",
     "typescript": "^5.3.3"
   }

@@ -1,9 +1,15 @@
 node_modules/
 dist/
+*.tsbuildinfo
+packages/ui-server/static/
 .env
 data/trident.db
 data/trident.db-shm
 data/trident.db-wal
+data/watcher-state.json
+data/scheduler-state.json
+data/google-token.json
+credentials.json
 *.js.map
 *.d.ts
 .DS_Store

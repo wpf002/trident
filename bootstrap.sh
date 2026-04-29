@@ -30,6 +30,32 @@ echo -e "${GREEN}  ✓ Node.js $(node -v)${RESET}"
 
 echo -e "${GRAY}  Creating data directories…${RESET}"
 mkdir -p data/docs
+mkdir -p data/docs/briefings
+
+# ─── Default config files ────────────────────────────────────────────────────
+
+if [ ! -f "trident.config.json" ]; then
+  cat > trident.config.json <<'EOF'
+{
+  "routing": {
+    "research": ["perplexity", "claude", "gpt"],
+    "code": ["claude", "gpt", "perplexity"],
+    "summarize": ["gpt", "claude", "perplexity"],
+    "default": ["claude", "gpt", "perplexity"]
+  }
+}
+EOF
+  echo -e "${GREEN}  ✓ trident.config.json created (default routing modes)${RESET}"
+else
+  echo -e "${GREEN}  ✓ trident.config.json already exists${RESET}"
+fi
+
+if [ ! -f "schedules.json" ]; then
+  echo "[]" > schedules.json
+  echo -e "${GREEN}  ✓ schedules.json created (empty — see README for format)${RESET}"
+else
+  echo -e "${GREEN}  ✓ schedules.json already exists${RESET}"
+fi
 
 # ─── .env setup ──────────────────────────────────────────────────────────────
 
@@ -47,9 +73,9 @@ npm install
 
 echo -e "${GREEN}  ✓ Dependencies installed${RESET}"
 
-# ─── Build TypeScript ─────────────────────────────────────────────────────────
+# ─── Build TypeScript and UI ─────────────────────────────────────────────────
 
-echo -e "${GRAY}  Building packages…${RESET}"
+echo -e "${GRAY}  Building packages (server, watcher, scheduler, ui-server, ui, cli)…${RESET}"
 npm run build
 
 echo -e "${GREEN}  ✓ Build complete${RESET}"
@@ -94,6 +120,14 @@ echo ""
 echo -e "  4. Verify setup:"
 echo -e "     ${WHITE}trident status${RESET}"
 echo ""
-echo -e "  5. Run your first parallel query:"
-echo -e "     ${WHITE}trident parallel \"What is the MCP protocol?\"${RESET}"
+echo -e "  5. Try the new features:"
+echo -e "     ${WHITE}trident parallel \"What is the MCP protocol?\" --diff --score${RESET}"
+echo -e "     ${WHITE}trident chain \"Compare Rust and Go\" --mode research${RESET}"
+echo -e "     ${WHITE}trident sessions${RESET}"
+echo -e "     ${WHITE}trident ui${RESET}                  ${GRAY}# web dashboard at http://localhost:4242${RESET}"
+echo -e "     ${WHITE}trident watch${RESET}               ${GRAY}# auto-index data/docs/ into memory${RESET}"
+echo -e "     ${WHITE}trident schedule list${RESET}       ${GRAY}# manage scheduled chains${RESET}"
+echo ""
+echo -e "  6. (Optional) Google Workspace tools — drop credentials.json at the repo root, then:"
+echo -e "     ${WHITE}trident google login${RESET}"
 echo ""
