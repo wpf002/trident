@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { OAuth2Client } from "google-auth-library";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "../../../../..");
+const REPO_ROOT = path.resolve(__dirname, "../../../..");
 const CREDENTIALS_PATH = path.join(REPO_ROOT, "credentials.json");
 const TOKEN_PATH = path.join(REPO_ROOT, "data", "google-token.json");
 

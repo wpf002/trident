@@ -2,6 +2,7 @@ import chalk, { ChalkInstance } from "chalk";
 import ora from "ora";
 import { nanoid } from "nanoid";
 import { AI_MAP, AIMessage, AIName, AIResponse, DEFAULT_ORDER } from "../lib/clients.js";
+import type { ModelTier } from "@trident/core";
 import { logSessionRun, SessionRunResponse } from "../lib/db.js";
 import { injectProjectContext } from "../lib/context.js";
 import { formatRunMarkdown, writeRunOutput } from "../lib/output.js";
@@ -110,6 +111,7 @@ export async function runParallel(
     output?: string;
     diff?: boolean;
     score?: boolean;
+    tier?: ModelTier;
   } = {}
 ): Promise<ParallelRunResult> {
   const ais = options.ais ?? DEFAULT_ORDER;
@@ -148,7 +150,7 @@ export async function runParallel(
     ais.map(async (ai) => {
       const aiStart = Date.now();
       const aiStartedAt = new Date().toISOString();
-      const result = await AI_MAP[ai](messages, effectiveSystem);
+      const result = await AI_MAP[ai](messages, effectiveSystem, { tier: options.tier ?? "main" });
       const aiFinishedAt = new Date().toISOString();
       responses.push({
         ai,

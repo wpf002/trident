@@ -84,7 +84,8 @@ export async function routeDetect(prompt: string) {
 
   const response = await callClaude(
     [{ role: "user", content: prompt }],
-    PROMPT_INSTRUCTIONS(modes)
+    PROMPT_INSTRUCTIONS(modes),
+    { tier: "utility" }
   );
 
   spinner.stop();

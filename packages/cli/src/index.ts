@@ -23,7 +23,7 @@ import { AIName } from "./lib/clients.js";
 import { resolveMode } from "./lib/config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 const program = new Command();
 
@@ -44,8 +44,16 @@ program
   .option("-O, --output <filepath>", "Write full results to a markdown file (in addition to stdout)")
   .option("--diff", "After responses, run a Claude synthesis identifying agreement, disagreement, and factual conflicts")
   .option("--score", "After responses, run a Claude confidence-scoring pass and print a Confidence Report")
+  .option("--premium", "Use the premium model tier (Opus 4.7 / GPT-4o / sonar-reasoning) — slower, ~10× the cost")
+  .option("--fast", "Use the utility model tier (Haiku 4.5 / GPT-4o-mini / sonar) — fastest, cheapest")
   .action(async (prompt: string, opts) => {
     const ais = opts.ais.split(",").map((a: string) => a.trim()) as AIName[];
+    if (opts.premium && opts.fast) {
+      console.error(chalk.red("  Cannot use --premium and --fast together. Pick one."));
+      process.exitCode = 1;
+      return;
+    }
+    const tier = opts.premium ? "premium" : opts.fast ? "utility" : "main";
     await runParallel(prompt, {
       ais,
       system: opts.system,
@@ -53,6 +61,7 @@ program
       output: opts.output,
       diff: opts.diff,
       score: opts.score,
+      tier,
     });
   });
 
@@ -70,17 +79,26 @@ program
   .option("-P, --project <project>", "Project namespace — auto-loads matching memory entries as context")
   .option("-O, --output <filepath>", "Write full results to a markdown file (in addition to stdout)")
   .option("-m, --mode <mode>", "Routing mode from trident.config.json (e.g. research, code, summarize)")
+  .option("--premium", "Use the premium model tier (Opus 4.7 / GPT-4o / sonar-reasoning) — slower, ~10× the cost")
+  .option("--fast", "Use the utility model tier (Haiku 4.5 / GPT-4o-mini / sonar) — fastest, cheapest")
   .action(async (prompt: string, opts) => {
     if (opts.listPresets) {
       listPresets();
       return;
     }
 
-    if (opts.mode && opts.order) {
-      console.error(chalk.red("  Cannot use --mode and --order together. Pick one."));
+    const orderSources = [opts.mode, opts.order, opts.preset].filter(Boolean).length;
+    if (orderSources > 1) {
+      console.error(chalk.red("  --mode, --order, and --preset are mutually exclusive. Pick one."));
       process.exitCode = 1;
       return;
     }
+    if (opts.premium && opts.fast) {
+      console.error(chalk.red("  Cannot use --premium and --fast together. Pick one."));
+      process.exitCode = 1;
+      return;
+    }
+    const tier = opts.premium ? "premium" : opts.fast ? "utility" : "main";
 
     let order: AIName[] | undefined;
     if (opts.mode) {
@@ -103,6 +121,7 @@ program
       showIntermediate: opts.showIntermediate,
       project: opts.project,
       output: opts.output,
+      tier,
     });
   });
 

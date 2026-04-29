@@ -3,7 +3,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DOCS_DIR = path.resolve(__dirname, "../../../../../data/docs");
+const DOCS_DIR = path.resolve(__dirname, "../../../../data/docs");
 
 // Ensure docs dir exists
 if (!fs.existsSync(DOCS_DIR)) {

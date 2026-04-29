@@ -3,12 +3,12 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import chalk from "chalk";
-import Anthropic from "@anthropic-ai/sdk";
 import Database from "better-sqlite3";
 import dotenv from "dotenv";
+import { callClaude } from "@trident/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "../../../..");
+const REPO_ROOT = path.resolve(__dirname, "../../..");
 const DOCS_DIR = path.join(REPO_ROOT, "data", "docs");
 const DB_PATH = path.join(REPO_ROOT, "data", "trident.db");
 const STATE_PATH = path.join(REPO_ROOT, "data", "watcher-state.json");
@@ -118,7 +118,6 @@ function parseExtraction(raw: string): ExtractionResult {
 }
 
 async function extractFacts(
-  client: Anthropic,
   relPath: string,
   contents: string
 ): Promise<ExtractionResult> {
@@ -131,19 +130,16 @@ async function extractFacts(
     "```",
   ].join("\n");
 
-  const response = await client.messages.create({
-    model: "claude-opus-4-5",
-    max_tokens: 1500,
-    system: EXTRACTION_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userMessage }],
-  });
+  const result = await callClaude(
+    [{ role: "user", content: userMessage }],
+    EXTRACTION_SYSTEM_PROMPT,
+    { tier: "utility", maxTokens: 1500 }
+  );
 
-  const text = response.content
-    .filter((b) => b.type === "text")
-    .map((b) => (b as { type: "text"; text: string }).text)
-    .join("\n");
-
-  return parseExtraction(text);
+  if (result.error) {
+    throw new Error(result.error);
+  }
+  return parseExtraction(result.content);
 }
 
 function formatMemoryValue(relPath: string, ext: ExtractionResult): string {
@@ -159,7 +155,6 @@ function formatMemoryValue(relPath: string, ext: ExtractionResult): string {
 }
 
 async function indexFile(
-  client: Anthropic,
   db: Database.Database,
   state: WatcherState,
   absPath: string
@@ -202,7 +197,7 @@ async function indexFile(
 
   let extResult: ExtractionResult;
   try {
-    extResult = await extractFacts(client, relPath, contents);
+    extResult = await extractFacts(relPath, contents);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.log(chalk.red(`  extract failed ${relPath}: ${message}`));
@@ -268,7 +263,6 @@ export async function runWatcher(options: WatcherOptions = {}): Promise<void> {
     fs.mkdirSync(DOCS_DIR, { recursive: true });
   }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const db = ensureDb();
   const state = loadState();
 
@@ -292,7 +286,7 @@ export async function runWatcher(options: WatcherOptions = {}): Promise<void> {
     };
     const files = walk(DOCS_DIR);
     for (const f of files) {
-      await indexFile(client, db, state, f);
+      await indexFile(db, state, f);
     }
     console.log(chalk.green(`\n  ✓ Single-pass scan complete (${files.length} files examined)\n`));
     return;
@@ -316,8 +310,8 @@ export async function runWatcher(options: WatcherOptions = {}): Promise<void> {
   };
 
   watcher
-    .on("add", (p) => enqueue(() => indexFile(client, db, state, p)))
-    .on("change", (p) => enqueue(() => indexFile(client, db, state, p)))
+    .on("add", (p) => enqueue(() => indexFile(db, state, p)))
+    .on("change", (p) => enqueue(() => indexFile(db, state, p)))
     .on("unlink", (p) => enqueue(async () => deindexFile(db, state, p)))
     .on("error", (err) => console.log(chalk.red(`  watcher error: ${err}`)));
 

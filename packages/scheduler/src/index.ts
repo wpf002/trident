@@ -9,7 +9,7 @@ import { nanoid } from "nanoid";
 import { AI_MAP, AI_LABELS, AIMessage, AIName, CHAIN_PRESETS, VALID_AIS } from "@trident/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "../../../..");
+const REPO_ROOT = path.resolve(__dirname, "../../..");
 const SCHEDULES_PATH = path.join(REPO_ROOT, "schedules.json");
 const STATE_PATH = path.join(REPO_ROOT, "data", "scheduler-state.json");
 const DB_PATH = path.join(REPO_ROOT, "data", "trident.db");

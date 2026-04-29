@@ -17,7 +17,7 @@ import { perplexityTools, handlePerplexityTool } from "./tools/perplexity.js";
 import { googleTools, handleGoogleTool } from "./tools/google.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 const allTools = [
   ...memoryTools,

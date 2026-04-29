@@ -100,9 +100,29 @@ trident parallel "Plan the BHIS migration" --project BHIS --output runs/bhis.md
 
 ```bash
 trident chain "Write an overview of MCP architecture" --preset draft-refine-verify
+trident chain "How should I build X?" --preset research-ideate-build  # research → creative → realistic plan
 trident chain "Is Rust worth learning in 2025?" --order perplexity,claude,gpt
 trident chain "Summarize this topic" --mode summarize         # uses trident.config.json
 trident chain "Audit this proposal" --show-intermediate
+```
+
+### Model tiers (cost vs quality)
+
+By default Trident uses the **main** tier — Sonnet 4.6 / GPT-4o-mini / sonar-pro — strong quality at low cost. Internal calls (route detection, synthesis, scoring, watcher fact extraction) automatically use the cheaper **utility** tier (Haiku 4.5 / GPT-4o-mini / sonar). Override per-call:
+
+```bash
+trident parallel "..." --premium     # Opus 4.7 / GPT-4o / sonar-reasoning (~10× cost)
+trident parallel "..." --fast        # Utility tier everywhere (cheapest)
+trident chain "..."  --premium       # Same flags work on chain
+```
+
+Or set defaults via env vars in `.env`:
+
+```dotenv
+TRIDENT_CLAUDE_MAIN_MODEL=claude-sonnet-4-6
+TRIDENT_GPT_MAIN_MODEL=gpt-4o-mini
+TRIDENT_PERPLEXITY_MAIN_MODEL=sonar-pro
+# (also _PREMIUM_MODEL and _UTILITY_MODEL variants per provider)
 ```
 
 ### Session replay
@@ -234,6 +254,7 @@ Per-schedule fields:
 | `draft-refine-verify` | Claude → GPT → Perplexity | Writing with live fact-check |
 | `research-analyze-summarize` | Perplexity → Claude → GPT | Research to actionable summary |
 | `attack-defend-judge` | GPT → Claude → Perplexity | Debate and verdict |
+| `research-ideate-build` | Perplexity → GPT → Claude | Project planning: research the ground truth, ideate creatively, then build a realistic plan |
 
 Add more in [`packages/core/src/presets.ts`](packages/core/src/presets.ts) — every package (CLI, scheduler, UI server) reads from there.
 

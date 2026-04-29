@@ -60,7 +60,8 @@ export async function runDiffSynthesis(
   const start = Date.now();
   const result = await callClaude(
     [{ role: "user", content: userMessage }],
-    DIFF_SYSTEM_PROMPT
+    DIFF_SYSTEM_PROMPT,
+    { tier: "utility" }
   );
   return {
     content: result.content,
@@ -154,7 +155,8 @@ export async function runConfidenceScoring(
   const start = Date.now();
   const result = await callClaude(
     [{ role: "user", content: userMessage }],
-    CONFIDENCE_SYSTEM_PROMPT
+    CONFIDENCE_SYSTEM_PROMPT,
+    { tier: "utility" }
   );
   const duration = Date.now() - start;
 

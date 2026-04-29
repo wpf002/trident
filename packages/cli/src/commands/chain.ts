@@ -3,6 +3,7 @@ import ora from "ora";
 import { nanoid } from "nanoid";
 import { AI_MAP, AIMessage, AIName, AIResponse, DEFAULT_ORDER } from "../lib/clients.js";
 import { CHAIN_PRESETS } from "@trident/core";
+import type { ModelTier } from "@trident/core";
 import { logSessionRun, SessionRunResponse } from "../lib/db.js";
 import { buildProjectContextBlock } from "../lib/context.js";
 import { formatRunMarkdown, writeRunOutput } from "../lib/output.js";
@@ -47,6 +48,7 @@ export async function runChain(
     quiet?: boolean;
     metadata?: Record<string, unknown>;
     output?: string;
+    tier?: ModelTier;
   } = {}
 ): Promise<ChainRunResult> {
   let order: AIName[];
@@ -123,7 +125,7 @@ export async function runChain(
 
     const aiStart = Date.now();
     const aiStartedAt = new Date().toISOString();
-    const result = await AI_MAP[ai](contextMessages, systemPrompt);
+    const result = await AI_MAP[ai](contextMessages, systemPrompt, { tier: options.tier ?? "main" });
     const aiFinishedAt = new Date().toISOString();
     spinner?.stop();
 

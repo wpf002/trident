@@ -19,7 +19,7 @@ import {
 import { AI_MAP, AIMessage, AIName, AIResponse, CHAIN_PRESETS, VALID_AIS } from "@trident/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "../../../..");
+const REPO_ROOT = path.resolve(__dirname, "../../..");
 
 dotenv.config({ path: path.join(REPO_ROOT, ".env") });
 
