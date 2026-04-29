@@ -55,10 +55,19 @@ export function sessionsList(opts: {
     const projectLabel = run.project ? chalk.gray(` [${run.project}]`) : "";
     const presetLabel = run.preset ? chalk.gray(` <${run.preset}>`) : "";
     const modeColor = run.mode === "parallel" ? chalk.hex("#6C63FF") : chalk.hex("#D4A017");
+    let tokIn = 0;
+    let tokOut = 0;
+    for (const r of run.responses) {
+      if (r.usage) {
+        tokIn += r.usage.input_tokens;
+        tokOut += r.usage.output_tokens;
+      }
+    }
+    const tokSummary = tokIn + tokOut > 0 ? chalk.gray(` • ${tokIn}↑/${tokOut}↓ tok`) : "";
     console.log(
       `  ${chalk.bold.white(run.id)}  ${modeColor(run.mode.padEnd(8))} ${chalk.gray(run.created_at)}${projectLabel}${presetLabel}`
     );
-    console.log(`    ${chalk.gray("AIs:")} ${ais}  ${chalk.gray("•")} ${chalk.gray(run.duration_ms + "ms")}`);
+    console.log(`    ${chalk.gray("AIs:")} ${ais}  ${chalk.gray("•")} ${chalk.gray(run.duration_ms + "ms")}${tokSummary}`);
     console.log(`    ${chalk.gray("→")} ${truncate(run.prompt.replace(/\s+/g, " "), 100)}\n`);
   }
 }
@@ -96,7 +105,10 @@ function printSession(run: SessionRunRecord) {
   for (const r of run.responses) {
     const color = aiColor(r.ai);
     const label = aiLabel(r.ai);
-    console.log(color.bold(`┌─ ${label} (${r.duration_ms}ms) ${"─".repeat(40 - label.length)}`));
+    const usage = r.usage ? ` ${r.usage.input_tokens}↑/${r.usage.output_tokens}↓ tok` : "";
+    const model = r.model ? ` ${r.model}` : "";
+    const meta = chalk.gray(`${r.duration_ms}ms${usage}${model}`);
+    console.log(color.bold(`┌─ ${label} ${"─".repeat(40 - label.length)}`) + ` ${meta}`);
     if (r.error) {
       console.log(chalk.red(`  Error: ${r.error}`));
     } else {

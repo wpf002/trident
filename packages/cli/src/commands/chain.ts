@@ -1,5 +1,4 @@
 import chalk, { ChalkInstance } from "chalk";
-import ora from "ora";
 import { nanoid } from "nanoid";
 import { AI_MAP, AIMessage, AIName, AIResponse, DEFAULT_ORDER } from "../lib/clients.js";
 import { CHAIN_PRESETS } from "@trident/core";
@@ -93,13 +92,6 @@ export async function runChain(
     const label = AI_LABELS[ai] ?? ai;
     const isLast = i === order.length - 1;
 
-    const spinner = options.quiet
-      ? null
-      : ora({
-          text: `${label} thinking…`,
-          color: "white",
-        }).start();
-
     const contextMessages: AIMessage[] = [...conversationHistory];
 
     if (i > 0) {
@@ -123,11 +115,41 @@ export async function runChain(
       ? `${projectBlock}\n\n---\n\n${baseSystemPrompt}`
       : baseSystemPrompt;
 
+    const showLive = !options.quiet && (options.showIntermediate || isLast);
+    if (showLive) {
+      console.log(color.bold(`┌─ ${label} (streaming) — Step ${i + 1}/${order.length} ${"─".repeat(25 - label.length)}`));
+      process.stdout.write("  ");
+    } else if (!options.quiet) {
+      process.stdout.write(chalk.gray(`  ${label} thinking…`));
+    }
+
     const aiStart = Date.now();
     const aiStartedAt = new Date().toISOString();
-    const result = await AI_MAP[ai](contextMessages, systemPrompt, { tier: options.tier ?? "main" });
+    // Already wrote the leading 2-space indent above for showLive; treat
+    // first character as continuation of an in-progress line.
+    let lineEndedWithNewline = false;
+    const result = await AI_MAP[ai](contextMessages, systemPrompt, {
+      tier: options.tier ?? "main",
+      tokens: showLive
+        ? (chunk) => {
+            // Indent continuation lines so streamed output stays inside the box.
+            for (const ch of chunk) {
+              if (lineEndedWithNewline && ch !== "\n") {
+                process.stdout.write("  ");
+                lineEndedWithNewline = false;
+              }
+              process.stdout.write(ch);
+              if (ch === "\n") lineEndedWithNewline = true;
+            }
+          }
+        : undefined,
+    });
     const aiFinishedAt = new Date().toISOString();
-    spinner?.stop();
+
+    if (!options.quiet && !showLive) {
+      // Wipe the "thinking…" line.
+      process.stdout.write("\r" + " ".repeat(60) + "\r");
+    }
 
     allResults.push(result);
     responses.push({
@@ -137,22 +159,24 @@ export async function runChain(
       duration_ms: Date.now() - aiStart,
       started_at: aiStartedAt,
       finished_at: aiFinishedAt,
+      model: result.model,
+      usage: result.usage,
     });
 
     if (!options.quiet) {
-      console.log(color.bold(`┌─ ${label} (${result.duration_ms}ms) — Step ${i + 1}/${order.length} ${"─".repeat(25 - label.length)}`));
-
-      if (result.error) {
-        console.log(chalk.red(`  Error: ${result.error}`));
-        console.log(color.bold("└" + "─".repeat(50)) + "\n");
-      } else if (options.showIntermediate || isLast) {
-        const lines = result.content.split("\n");
-        for (const line of lines) {
-          console.log(`  ${line}`);
+      if (showLive) {
+        if (!lineEndedWithNewline) process.stdout.write("\n");
+        if (result.error) {
+          console.log(chalk.red(`  Error: ${result.error}`));
         }
-        console.log(color.bold("└" + "─".repeat(50)) + "\n");
+        console.log(color.bold("└" + "─".repeat(50)) + ` ${chalk.gray(result.duration_ms + "ms")}\n`);
       } else {
-        console.log(chalk.gray("  [output passed to next AI — use --show-intermediate to display]"));
+        console.log(color.bold(`┌─ ${label} (${result.duration_ms}ms) — Step ${i + 1}/${order.length} ${"─".repeat(25 - label.length)}`));
+        if (result.error) {
+          console.log(chalk.red(`  Error: ${result.error}`));
+        } else {
+          console.log(chalk.gray("  [output passed to next AI — use --show-intermediate to display]"));
+        }
         console.log(color.bold("└" + "─".repeat(50)) + "\n");
       }
     }

@@ -16,7 +16,16 @@ import {
   getSession,
   insertSession,
 } from "./db.js";
-import { AI_MAP, AIMessage, AIName, AIResponse, CHAIN_PRESETS, VALID_AIS } from "@trident/core";
+import {
+  AI_MAP,
+  AIMessage,
+  AIName,
+  AIResponse,
+  CHAIN_PRESETS,
+  VALID_AIS,
+  ModelTier,
+  callClaude,
+} from "@trident/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
@@ -114,6 +123,54 @@ interface QueryBody {
   preset?: string;
   system?: string;
   project?: string;
+  tier?: ModelTier;
+  diff?: boolean;
+  score?: boolean;
+}
+
+const VALID_TIERS: ReadonlySet<string> = new Set(["premium", "main", "utility"]);
+
+const DIFF_SYSTEM_PROMPT = `You are an analyst comparing multiple AI responses to the same prompt. Produce a structured comparison with three sections, in this order, using these exact markdown headings:
+
+## Agreement
+Bullet points covering substantive claims, facts, or recommendations all responses share.
+
+## Disagreement
+Bullet points covering points where the responses differ. Identify which AI says what.
+
+## Factual Conflicts
+Bullet points flagging any claims that directly contradict each other or look factually incorrect. If you cannot verify a claim, mark it as "unverifiable". If there are no factual conflicts, write "None identified."
+
+Be concise and concrete.`;
+
+const CONFIDENCE_SYSTEM_PROMPT = `You are evaluating multiple AI responses to a single prompt. Return ONLY a JSON object — no markdown fences, no preamble — with exactly this shape:
+
+{
+  "scores": [{ "ai": "<ai name>", "confidence": <0-100>, "rationale": "<one sentence>" }],
+  "agreement": "low" | "medium" | "high",
+  "consensus": ["<short bullet>", "..."],
+  "disagreement": ["<short bullet>", "..."]
+}
+
+One scores entry per response, in the same order given. Do not invent AI names — use the names exactly as given.`;
+
+function formatResponsesForSynthesis(
+  prompt: string,
+  responses: Array<{ ai: string; content: string; error?: string }>
+): string {
+  const sections = responses.map((r, i) => {
+    if (r.error) return `### Response ${i + 1} — ${r.ai} (errored)\n\n[Error: ${r.error}]`;
+    return `### Response ${i + 1} — ${r.ai}\n\n${r.content}`;
+  });
+  return [
+    "The user asked the following prompt to multiple AIs in parallel:",
+    "",
+    `> ${prompt.replace(/\n/g, "\n> ")}`,
+    "",
+    "Here are their responses:",
+    "",
+    ...sections,
+  ].join("\n");
 }
 
 function parseQuery(body: unknown): QueryBody | { error: string } {
@@ -131,6 +188,11 @@ function parseQuery(body: unknown): QueryBody | { error: string } {
   if (b.preset !== undefined && typeof b.preset !== "string") return { error: "preset must be a string" };
   if (b.system !== undefined && typeof b.system !== "string") return { error: "system must be a string" };
   if (b.project !== undefined && typeof b.project !== "string") return { error: "project must be a string" };
+  if (b.tier !== undefined && (typeof b.tier !== "string" || !VALID_TIERS.has(b.tier))) {
+    return { error: "tier must be one of: premium, main, utility" };
+  }
+  if (b.diff !== undefined && typeof b.diff !== "boolean") return { error: "diff must be boolean" };
+  if (b.score !== undefined && typeof b.score !== "boolean") return { error: "score must be boolean" };
   return {
     prompt: b.prompt,
     mode: b.mode,
@@ -138,6 +200,9 @@ function parseQuery(body: unknown): QueryBody | { error: string } {
     preset: b.preset as string | undefined,
     system: b.system as string | undefined,
     project: b.project as string | undefined,
+    tier: b.tier as ModelTier | undefined,
+    diff: b.diff as boolean | undefined,
+    score: b.score as boolean | undefined,
   };
 }
 
@@ -192,6 +257,7 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
     const aiStart = new Date().toISOString();
     send("ai_start", { ai, started_at: aiStart, ...extra });
     const result = await AI_MAP[ai](messages, system, {
+      tier: parsed.tier ?? "main",
       tokens: (chunk) => send("ai_token", { ai, delta: chunk }),
     });
     const aiFinish = new Date().toISOString();
@@ -233,6 +299,51 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
     }
   }
 
+  // ─── Synthesis (--diff / --score equivalents) ────────────────────────────
+  const synthesisMeta: Record<string, unknown> = {};
+  const usableForSynthesis = collected.filter((r) => !r.error && r.content.trim().length > 0);
+
+  if (parsed.diff && usableForSynthesis.length >= 2) {
+    send("synthesis_start", { kind: "diff" });
+    const diffPrompt = formatResponsesForSynthesis(parsed.prompt, collected);
+    const diffResult = await callClaude(
+      [{ role: "user", content: diffPrompt }],
+      DIFF_SYSTEM_PROMPT,
+      {
+        tier: "utility",
+        tokens: (chunk) => send("synthesis_token", { kind: "diff", delta: chunk }),
+      }
+    );
+    send("synthesis_done", { kind: "diff", content: diffResult.content, error: diffResult.error });
+    if (!diffResult.error) {
+      synthesisMeta.synthesis = { content: diffResult.content, duration_ms: diffResult.duration_ms };
+    }
+  }
+
+  if (parsed.score && usableForSynthesis.length >= 2) {
+    send("synthesis_start", { kind: "score" });
+    const scorePrompt = formatResponsesForSynthesis(parsed.prompt, collected);
+    const scoreResult = await callClaude(
+      [{ role: "user", content: scorePrompt }],
+      CONFIDENCE_SYSTEM_PROMPT,
+      { tier: "utility" }
+    );
+    let report: unknown = null;
+    let scoreError: string | undefined = scoreResult.error;
+    if (!scoreError) {
+      try {
+        let text = scoreResult.content.trim();
+        const fence = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+        if (fence) text = fence[1].trim();
+        report = JSON.parse(text);
+      } catch (err) {
+        scoreError = `Failed to parse confidence report: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }
+    send("synthesis_done", { kind: "score", report, error: scoreError });
+    if (report) synthesisMeta.confidence = report;
+  }
+
   const finishedAt = new Date().toISOString();
   const durationMs = Date.now() - runStart;
 
@@ -250,11 +361,13 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
         duration_ms: r.duration_ms,
         started_at: r.started_at,
         finished_at: r.finished_at,
+        model: r.model,
+        usage: r.usage,
       })),
       duration_ms: durationMs,
       preset: parsed.preset ?? null,
       system_prompt: parsed.system ?? null,
-      metadata: { source: "ui" },
+      metadata: { source: "ui", tier: parsed.tier ?? "main", ...synthesisMeta },
       started_at: startedAt,
       finished_at: finishedAt,
     });

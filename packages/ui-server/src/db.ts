@@ -127,6 +127,8 @@ export interface SessionRun {
     duration_ms: number;
     started_at: string;
     finished_at: string;
+    model?: string;
+    usage?: { input_tokens: number; output_tokens: number };
   }>;
   duration_ms: number;
   preset: string | null;

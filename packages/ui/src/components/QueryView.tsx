@@ -23,7 +23,21 @@ interface RunState {
   partial: Record<string, string>;
   partialStart: Record<string, string>;
   partialStep?: Record<string, { step: number; total: number }>;
+  diffPartial?: string;
+  diffContent?: string;
+  diffError?: string;
+  diffActive?: boolean;
+  scoreReport?: {
+    scores: Array<{ ai: string; confidence: number; rationale: string }>;
+    agreement: "low" | "medium" | "high";
+    consensus: string[];
+    disagreement: string[];
+  };
+  scoreError?: string;
+  scoreActive?: boolean;
 }
+
+type Tier = "premium" | "main" | "utility";
 
 const ALL_AIS: AIName[] = ["claude", "gpt", "perplexity"];
 const PRESETS = ["draft-refine-verify", "research-analyze-summarize", "attack-defend-judge"];
@@ -54,6 +68,9 @@ export function QueryView() {
   const [preset, setPreset] = useState<string>("");
   const [system, setSystem] = useState("");
   const [project, setProject] = useState("");
+  const [tier, setTier] = useState<Tier>("main");
+  const [diff, setDiff] = useState(false);
+  const [score, setScore] = useState(false);
   const [run, setRun] = useState<RunState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +96,9 @@ export function QueryView() {
       preset: mode === "chain" && preset ? preset : undefined,
       system: system || undefined,
       project: project || undefined,
+      tier,
+      diff: mode === "parallel" ? diff : undefined,
+      score: mode === "parallel" ? score : undefined,
     };
 
     let response: Response;
@@ -169,6 +189,39 @@ export function QueryView() {
                   total: d.total,
                 },
               ],
+            };
+          }
+          case "synthesis_start": {
+            const d = data as { kind: "diff" | "score" };
+            return d.kind === "diff"
+              ? { ...curr, diffActive: true, diffPartial: "" }
+              : { ...curr, scoreActive: true };
+          }
+          case "synthesis_token": {
+            const d = data as { kind: "diff" | "score"; delta: string };
+            if (d.kind === "diff") {
+              return { ...curr, diffPartial: (curr.diffPartial ?? "") + d.delta };
+            }
+            return curr;
+          }
+          case "synthesis_done": {
+            const d = data as
+              | { kind: "diff"; content: string; error?: string }
+              | { kind: "score"; report: RunState["scoreReport"]; error?: string };
+            if (d.kind === "diff") {
+              return {
+                ...curr,
+                diffActive: false,
+                diffContent: d.error ? undefined : d.content,
+                diffError: d.error,
+                diffPartial: undefined,
+              };
+            }
+            return {
+              ...curr,
+              scoreActive: false,
+              scoreReport: d.error ? undefined : d.report,
+              scoreError: d.error,
             };
           }
           case "done": {
@@ -268,6 +321,28 @@ export function QueryView() {
               ))}
             </div>
           </div>
+          <div className="row">
+            <div style={{ minWidth: 160 }}>
+              <div className="muted tiny">Model tier</div>
+              <select value={tier} onChange={(e) => setTier(e.target.value as Tier)}>
+                <option value="utility">Fast / Cheap (Haiku · 4o-mini · sonar)</option>
+                <option value="main">Main (Sonnet · 4o-mini · sonar-pro)</option>
+                <option value="premium">Premium (Opus · 4o · sonar-reasoning)</option>
+              </select>
+            </div>
+            {mode === "parallel" && (
+              <div className="row" style={{ gap: 14 }}>
+                <label className="row" style={{ gap: 6, cursor: "pointer" }}>
+                  <input type="checkbox" checked={diff} onChange={(e) => setDiff(e.target.checked)} />
+                  <span className="muted tiny">Synthesize (--diff)</span>
+                </label>
+                <label className="row" style={{ gap: 6, cursor: "pointer" }}>
+                  <input type="checkbox" checked={score} onChange={(e) => setScore(e.target.checked)} />
+                  <span className="muted tiny">Confidence (--score)</span>
+                </label>
+              </div>
+            )}
+          </div>
           <div>
             <div className="muted tiny">System prompt (optional)</div>
             <textarea rows={2} value={system} onChange={(e) => setSystem(e.target.value)} />
@@ -328,6 +403,91 @@ export function QueryView() {
               </div>
             );
           })}
+
+          {(run.diffActive || run.diffContent || run.diffError || run.diffPartial) && (
+            <div className="card" style={{ borderColor: "var(--accent)" }}>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <div className="row">
+                  <span className="tag claude">Synthesis (--diff)</span>
+                  {run.diffActive && <span className="spinner" />}
+                </div>
+                <span className="muted tiny">{run.diffActive ? "streaming…" : "done"}</span>
+              </div>
+              {run.diffError ? (
+                <div className="error" style={{ marginTop: 8 }}>{run.diffError}</div>
+              ) : (
+                <pre>
+                  {run.diffContent ?? run.diffPartial ?? ""}
+                  {run.diffActive && <span className="cursor">▍</span>}
+                </pre>
+              )}
+            </div>
+          )}
+
+          {(run.scoreActive || run.scoreReport || run.scoreError) && (
+            <div className="card" style={{ borderColor: "var(--accent-2)" }}>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <div className="row">
+                  <span className="tag perplexity">Confidence (--score)</span>
+                  {run.scoreActive && <span className="spinner" />}
+                </div>
+                <span className="muted tiny">{run.scoreActive ? "scoring…" : "done"}</span>
+              </div>
+              {run.scoreError ? (
+                <div className="error" style={{ marginTop: 8 }}>{run.scoreError}</div>
+              ) : run.scoreReport ? (
+                <ConfidenceReportView report={run.scoreReport} />
+              ) : null}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ConfidenceReport {
+  scores: Array<{ ai: string; confidence: number; rationale: string }>;
+  agreement: "low" | "medium" | "high";
+  consensus: string[];
+  disagreement: string[];
+}
+
+function ConfidenceReportView({ report }: { report: ConfidenceReport }) {
+  const agreementColor =
+    report.agreement === "high" ? "var(--green)" : report.agreement === "medium" ? "var(--yellow)" : "var(--red)";
+  return (
+    <div className="column" style={{ marginTop: 8 }}>
+      {report.scores.map((s) => {
+        const barWidth = Math.max(0, Math.min(100, s.confidence));
+        const barColor =
+          s.confidence >= 75 ? "var(--green)" : s.confidence >= 50 ? "var(--yellow)" : "var(--red)";
+        return (
+          <div key={s.ai}>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <span className={"tag " + s.ai}>{aiLabel(s.ai)}</span>
+              <span className="muted tiny">{s.confidence}/100</span>
+            </div>
+            <div style={{ height: 6, background: "var(--bg-elev-2)", borderRadius: 3, marginTop: 4 }}>
+              <div style={{ width: `${barWidth}%`, height: "100%", background: barColor, borderRadius: 3 }} />
+            </div>
+            <div className="muted tiny" style={{ marginTop: 4 }}>{s.rationale}</div>
+          </div>
+        );
+      })}
+      <div className="muted tiny">
+        Overall agreement: <span style={{ color: agreementColor }}>{report.agreement}</span>
+      </div>
+      {report.consensus.length > 0 && (
+        <div>
+          <div className="muted tiny">Consensus</div>
+          <ul style={{ margin: "4px 0 0 16px" }}>{report.consensus.map((c, i) => <li key={i}>{c}</li>)}</ul>
+        </div>
+      )}
+      {report.disagreement.length > 0 && (
+        <div>
+          <div className="muted tiny">Disagreement</div>
+          <ul style={{ margin: "4px 0 0 16px" }}>{report.disagreement.map((d, i) => <li key={i}>{d}</li>)}</ul>
         </div>
       )}
     </div>

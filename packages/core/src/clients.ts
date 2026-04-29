@@ -73,8 +73,16 @@ export async function callClaude(
         collected += delta;
         options.tokens!(delta);
       });
-      await streamResp.finalMessage();
-      return { ai: "claude", content: collected, duration_ms: Date.now() - start };
+      const final = await streamResp.finalMessage();
+      return {
+        ai: "claude",
+        content: collected,
+        duration_ms: Date.now() - start,
+        model,
+        usage: final.usage
+          ? { input_tokens: final.usage.input_tokens, output_tokens: final.usage.output_tokens }
+          : undefined,
+      };
     }
 
     const response = await client.messages.create({
@@ -89,7 +97,15 @@ export async function callClaude(
       .map((b) => (b as { type: "text"; text: string }).text)
       .join("\n");
 
-    return { ai: "claude", content: text, duration_ms: Date.now() - start };
+    return {
+      ai: "claude",
+      content: text,
+      duration_ms: Date.now() - start,
+      model,
+      usage: response.usage
+        ? { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens }
+        : undefined,
+    };
   } catch (err) {
     return {
       ai: "claude",
@@ -131,16 +147,26 @@ async function callOpenAICompatible(
         max_tokens,
         messages: all,
         stream: true,
+        // Most OpenAI-compatible providers (incl. OpenAI + Perplexity) honor
+        // this and append a `.usage` object to the final chunk.
+        stream_options: { include_usage: true },
       });
       let collected = "";
+      let usage: { input_tokens: number; output_tokens: number } | undefined;
       for await (const chunk of streamResp) {
         const delta = chunk.choices[0]?.delta?.content ?? "";
         if (delta) {
           collected += delta;
           options.tokens(delta);
         }
+        if (chunk.usage) {
+          usage = {
+            input_tokens: chunk.usage.prompt_tokens,
+            output_tokens: chunk.usage.completion_tokens,
+          };
+        }
       }
-      return { ai, content: collected, duration_ms: Date.now() - start };
+      return { ai, content: collected, duration_ms: Date.now() - start, model, usage };
     }
 
     const response = await client.chat.completions.create({
@@ -152,6 +178,10 @@ async function callOpenAICompatible(
       ai,
       content: response.choices[0]?.message?.content ?? "",
       duration_ms: Date.now() - start,
+      model,
+      usage: response.usage
+        ? { input_tokens: response.usage.prompt_tokens, output_tokens: response.usage.completion_tokens }
+        : undefined,
     };
   } catch (err) {
     return {

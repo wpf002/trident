@@ -134,23 +134,45 @@ export async function runParallel(
     console.log(chalk.bold.white("━".repeat(60)) + "\n");
   }
 
-  const spinner = options.quiet
-    ? null
-    : ora({
-        text: `Querying ${ais.map((a) => AI_LABELS[a]).join(", ")} in parallel…`,
-        color: "white",
-      }).start();
-
   const runId = nanoid(12);
   const startedAt = new Date().toISOString();
   const runStart = Date.now();
 
   const responses: SessionRunResponse[] = [];
+
+  // Per-AI live character counters shown on a single rewrite line. Cleaner
+  // than interleaving each AI's tokens to stdout when 3 calls are in flight.
+  const liveChars: Record<string, number> = {};
+  for (const ai of ais) liveChars[ai] = 0;
+  let liveActive = ais.length;
+  const renderLive = () => {
+    if (options.quiet) return;
+    const parts = ais.map((ai) => {
+      const color = AI_COLORS[ai] ?? chalk.white;
+      const label = AI_LABELS[ai] ?? ai;
+      const status = responses.find((r) => r.ai === ai)
+        ? "✓"
+        : liveChars[ai] > 0
+        ? `${liveChars[ai]}c`
+        : "…";
+      return color(`${label} ${status}`);
+    });
+    process.stdout.write(`\r  ${parts.join("  ")}  ${chalk.gray(`(${liveActive} active)`)}     `);
+  };
+  renderLive();
   const results = await Promise.all(
     ais.map(async (ai) => {
       const aiStart = Date.now();
       const aiStartedAt = new Date().toISOString();
-      const result = await AI_MAP[ai](messages, effectiveSystem, { tier: options.tier ?? "main" });
+      const result = await AI_MAP[ai](messages, effectiveSystem, {
+        tier: options.tier ?? "main",
+        tokens: options.quiet
+          ? undefined
+          : (chunk) => {
+              liveChars[ai] += chunk.length;
+              renderLive();
+            },
+      });
       const aiFinishedAt = new Date().toISOString();
       responses.push({
         ai,
@@ -159,15 +181,21 @@ export async function runParallel(
         duration_ms: Date.now() - aiStart,
         started_at: aiStartedAt,
         finished_at: aiFinishedAt,
+        model: result.model,
+        usage: result.usage,
       });
+      liveActive -= 1;
+      renderLive();
       return result;
     })
   );
 
+  if (!options.quiet) {
+    process.stdout.write("\r" + " ".repeat(100) + "\r");
+  }
+
   const finishedAt = new Date().toISOString();
   const durationMs = Date.now() - runStart;
-
-  spinner?.stop();
 
   for (const result of results) {
     const ai = result.ai as AIName;

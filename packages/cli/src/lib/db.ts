@@ -77,6 +77,8 @@ export interface SessionRunResponse {
   duration_ms: number;
   started_at: string;
   finished_at: string;
+  model?: string;
+  usage?: { input_tokens: number; output_tokens: number };
 }
 
 export interface SessionRunRecord {

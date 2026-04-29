@@ -9,9 +9,16 @@ export interface AIMessage {
   content: string;
 }
 
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+}
+
 export interface AIResponse {
   ai: AIName;
   content: string;
   error?: string;
   duration_ms: number;
+  model?: string;
+  usage?: TokenUsage;
 }

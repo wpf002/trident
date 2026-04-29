@@ -16,6 +16,7 @@ import {
 } from "./commands/memory.js";
 import { sessionsList, sessionsGet } from "./commands/sessions.js";
 import { routeDetect, routeList } from "./commands/route.js";
+import { configShow } from "./commands/config.js";
 import { runWatcher } from "@trident/watcher";
 import { scheduleList, scheduleRun, scheduleDaemon } from "@trident/scheduler";
 import { googleLogin, googleStatus } from "./commands/google.js";
@@ -303,6 +304,15 @@ program
   .description("List available chain presets")
   .action(() => {
     listPresets();
+  });
+
+// ─── config ──────────────────────────────────────────────────────────────────
+
+program
+  .command("config")
+  .description("Show resolved configuration: models per tier, routing modes, files, API keys")
+  .action(() => {
+    configShow();
   });
 
 // ─── status ──────────────────────────────────────────────────────────────────
