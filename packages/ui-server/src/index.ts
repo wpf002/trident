@@ -98,8 +98,8 @@ Bullet points covering substantive claims, facts, or recommendations all respons
 ## Disagreement
 Bullet points covering points where the responses differ. Identify which AI says what.
 
-## Factual Conflicts
-Bullet points flagging any claims that directly contradict each other or look factually incorrect. If you cannot verify a claim, mark it as "unverifiable". If there are no factual conflicts, write "None identified."
+## Conflicts
+Bullet points flagging any claims that directly contradict each other or look factually incorrect. If you cannot verify a claim, mark it as "unverifiable". If there are no conflicts, write "None identified."
 
 Be concise and concrete.`;
 

@@ -74,8 +74,6 @@ export function QueryView() {
   const [preset, setPreset] = useState<string>("");
   const [system, setSystem] = useState("");
   const [tier, setTier] = useState<Tier>("main");
-  const [diff, setDiff] = useState(false);
-  const [score, setScore] = useState(false);
   const [run, setRun] = useState<RunState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,8 +99,8 @@ export function QueryView() {
       preset: mode === "chain" && preset ? preset : undefined,
       system: system || undefined,
       tier,
-      diff: mode === "parallel" ? diff : undefined,
-      score: mode === "parallel" ? score : undefined,
+      diff: mode === "parallel" ? true : undefined,
+      score: mode === "parallel" ? true : undefined,
     };
 
     let response: Response;
@@ -294,6 +292,15 @@ export function QueryView() {
               placeholder="What would you like to ask?"
             />
           </div>
+          <div>
+            <div className="label">System prompt (optional)</div>
+            <textarea
+              rows={2}
+              value={system}
+              onChange={(e) => setSystem(e.target.value)}
+              placeholder="Optional persona or instructions applied to every model call"
+            />
+          </div>
           <div className="row">
             <div style={{ minWidth: 140 }}>
               <div className="label">Mode</div>
@@ -346,31 +353,6 @@ export function QueryView() {
                 <option value="premium">Premium — Opus · 4o · sonar-reasoning</option>
               </select>
             </div>
-            {mode === "parallel" && (
-              <div className="row" style={{ gap: 16, marginTop: 22 }}>
-                <label className="row" style={{ gap: 8, cursor: "pointer" }}>
-                  <input type="checkbox" checked={diff} onChange={(e) => setDiff(e.target.checked)} />
-                  <span className="muted tiny">Synthesize (diff)</span>
-                </label>
-                <label className="row" style={{ gap: 8, cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={score}
-                    onChange={(e) => setScore(e.target.checked)}
-                  />
-                  <span className="muted tiny">Confidence (score)</span>
-                </label>
-              </div>
-            )}
-          </div>
-          <div>
-            <div className="label">System prompt (optional)</div>
-            <textarea
-              rows={2}
-              value={system}
-              onChange={(e) => setSystem(e.target.value)}
-              placeholder="Optional persona or instructions applied to every model call"
-            />
           </div>
           <div className="row">
             <button className="primary" onClick={start} disabled={run?.status === "running"}>
@@ -394,7 +376,6 @@ export function QueryView() {
               <span className="label" style={{ margin: 0 }}>
                 Session
               </span>
-              <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 12 }}>{run.id}</span>
               {run.status === "running" && <span className="spinner" />}
             </div>
             {run.durationMs !== undefined && (
@@ -461,7 +442,7 @@ export function QueryView() {
             <div className="card bordered-gold">
               <div className="card-header">
                 <div className="row">
-                  <span className="tag claude">Synthesis</span>
+                  <span className="tag claude">Verdict</span>
                   {run.diffActive && <span className="spinner" />}
                 </div>
                 <span className="muted tiny">{run.diffActive ? "streaming…" : "done"}</span>
@@ -481,7 +462,7 @@ export function QueryView() {
             <div className="card bordered-blue">
               <div className="card-header">
                 <div className="row">
-                  <span className="tag perplexity">Confidence</span>
+                  <span className="tag perplexity">Confidence Score</span>
                   {run.scoreActive && <span className="spinner" />}
                 </div>
                 <span className="muted tiny">{run.scoreActive ? "scoring…" : "done"}</span>
