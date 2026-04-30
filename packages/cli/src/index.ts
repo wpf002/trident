@@ -7,17 +7,9 @@ import { fileURLToPath } from "url";
 
 import { runParallel } from "./commands/parallel.js";
 import { runChain, listPresets } from "./commands/chain.js";
-import {
-  memoryList,
-  memoryGet,
-  memorySet,
-  memoryRemove,
-  memoryProjects,
-} from "./commands/memory.js";
 import { sessionsList, sessionsGet } from "./commands/sessions.js";
 import { routeDetect, routeList } from "./commands/route.js";
 import { configShow } from "./commands/config.js";
-import { runWatcher } from "@trident/watcher";
 import { scheduleList, scheduleRun, scheduleDaemon } from "@trident/scheduler";
 import { googleLogin, googleStatus } from "./commands/google.js";
 import { AIName } from "./lib/clients.js";
@@ -41,7 +33,6 @@ program
   .description("Fire a prompt at all three AIs simultaneously and compare outputs")
   .option("-a, --ais <ais>", "Comma-separated list of AIs to use (claude,gpt,perplexity)", "claude,gpt,perplexity")
   .option("-s, --system <system>", "System prompt to use for all AIs")
-  .option("-P, --project <project>", "Project namespace — auto-loads matching memory entries as context")
   .option("-O, --output <filepath>", "Write full results to a markdown file (in addition to stdout)")
   .option("--diff", "After responses, run a Claude synthesis identifying agreement, disagreement, and factual conflicts")
   .option("--score", "After responses, run a Claude confidence-scoring pass and print a Confidence Report")
@@ -58,7 +49,6 @@ program
     await runParallel(prompt, {
       ais,
       system: opts.system,
-      project: opts.project,
       output: opts.output,
       diff: opts.diff,
       score: opts.score,
@@ -77,7 +67,6 @@ program
   .option("--list-presets", "List available chain presets")
   .option("-s, --system <system>", "Global system prompt (overrides preset)")
   .option("-i, --show-intermediate", "Show intermediate AI outputs (not just final)")
-  .option("-P, --project <project>", "Project namespace — auto-loads matching memory entries as context")
   .option("-O, --output <filepath>", "Write full results to a markdown file (in addition to stdout)")
   .option("-m, --mode <mode>", "Routing mode from trident.config.json (e.g. research, code, summarize)")
   .option("--premium", "Use the premium model tier (Opus 4.7 / GPT-4o / sonar-reasoning) — slower, ~10× the cost")
@@ -120,58 +109,9 @@ program
       preset: opts.preset,
       system: opts.system,
       showIntermediate: opts.showIntermediate,
-      project: opts.project,
       output: opts.output,
       tier,
     });
-  });
-
-// ─── memory ──────────────────────────────────────────────────────────────────
-
-const memCmd = program
-  .command("memory")
-  .alias("m")
-  .description("Manage the shared Trident memory store");
-
-memCmd
-  .command("list")
-  .alias("ls")
-  .description("List all memory entries")
-  .option("-p, --project <project>", "Filter by project namespace")
-  .action((opts) => {
-    memoryList(opts.project);
-  });
-
-memCmd
-  .command("get <key>")
-  .description("Get a memory value by key")
-  .option("-p, --project <project>", "Project namespace (default: global)")
-  .action((key: string, opts) => {
-    memoryGet(key, opts.project);
-  });
-
-memCmd
-  .command("set <key> <value>")
-  .description("Write a value to memory")
-  .option("-p, --project <project>", "Project namespace (default: global)")
-  .action((key: string, value: string, opts) => {
-    memorySet(key, value, opts.project ?? "global");
-  });
-
-memCmd
-  .command("delete <key>")
-  .alias("rm")
-  .description("Delete a memory entry")
-  .option("-p, --project <project>", "Project namespace (default: global)")
-  .action((key: string, opts) => {
-    memoryRemove(key, opts.project ?? "global");
-  });
-
-memCmd
-  .command("projects")
-  .description("List all project namespaces")
-  .action(() => {
-    memoryProjects();
   });
 
 // ─── sessions ────────────────────────────────────────────────────────────────
@@ -187,7 +127,6 @@ sessionsCmd
   .description("List recent session runs")
   .option("-l, --limit <n>", "Max number of sessions to show (default: 50)", (v) => parseInt(v, 10))
   .option("-m, --mode <mode>", "Filter by mode: parallel or chain")
-  .option("-p, --project <project>", "Filter by project namespace")
   .action((opts) => {
     const mode = opts.mode as "parallel" | "chain" | undefined;
     if (mode && mode !== "parallel" && mode !== "chain") {
@@ -195,7 +134,7 @@ sessionsCmd
       process.exitCode = 1;
       return;
     }
-    sessionsList({ limit: opts.limit, mode, project: opts.project });
+    sessionsList({ limit: opts.limit, mode });
   });
 
 sessionsCmd
@@ -203,16 +142,6 @@ sessionsCmd
   .description("Reprint the full output of a past session by ID")
   .action((id: string) => {
     sessionsGet(id);
-  });
-
-// ─── watch ───────────────────────────────────────────────────────────────────
-
-program
-  .command("watch")
-  .description("Watch data/docs/ — extract key facts from new/changed files into project memory")
-  .option("--once", "Index all files in a single pass and exit (don't keep watching)")
-  .action(async (opts) => {
-    await runWatcher({ once: !!opts.once });
   });
 
 // ─── ui ──────────────────────────────────────────────────────────────────────

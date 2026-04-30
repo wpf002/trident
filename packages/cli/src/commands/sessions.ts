@@ -28,12 +28,10 @@ function truncate(s: string, n: number): string {
 export function sessionsList(opts: {
   limit?: number;
   mode?: "parallel" | "chain";
-  project?: string;
 }) {
   const runs = listSessionRuns({
     limit: opts.limit,
     mode: opts.mode,
-    project: opts.project,
   });
 
   if (runs.length === 0) {
@@ -42,17 +40,13 @@ export function sessionsList(opts: {
   }
 
   console.log("\n" + chalk.bold.white("  Trident Sessions"));
-  if (opts.mode || opts.project) {
-    const filters: string[] = [];
-    if (opts.mode) filters.push(`mode=${opts.mode}`);
-    if (opts.project) filters.push(`project=${opts.project}`);
-    console.log(chalk.gray(`  Filters: ${filters.join(", ")}`));
+  if (opts.mode) {
+    console.log(chalk.gray(`  Filters: mode=${opts.mode}`));
   }
   console.log(chalk.gray(`  Showing ${runs.length} most recent\n`));
 
   for (const run of runs) {
     const ais = run.ais.map(aiLabel).join(", ");
-    const projectLabel = run.project ? chalk.gray(` [${run.project}]`) : "";
     const presetLabel = run.preset ? chalk.gray(` <${run.preset}>`) : "";
     const modeColor = run.mode === "parallel" ? chalk.hex("#6C63FF") : chalk.hex("#D4A017");
     let tokIn = 0;
@@ -65,7 +59,7 @@ export function sessionsList(opts: {
     }
     const tokSummary = tokIn + tokOut > 0 ? chalk.gray(` • ${tokIn}↑/${tokOut}↓ tok`) : "";
     console.log(
-      `  ${chalk.bold.white(run.id)}  ${modeColor(run.mode.padEnd(8))} ${chalk.gray(run.created_at)}${projectLabel}${presetLabel}`
+      `  ${chalk.bold.white(run.id)}  ${modeColor(run.mode.padEnd(8))} ${chalk.gray(run.created_at)}${presetLabel}`
     );
     console.log(`    ${chalk.gray("AIs:")} ${ais}  ${chalk.gray("•")} ${chalk.gray(run.duration_ms + "ms")}${tokSummary}`);
     console.log(`    ${chalk.gray("→")} ${truncate(run.prompt.replace(/\s+/g, " "), 100)}\n`);
@@ -89,7 +83,6 @@ function printSession(run: SessionRunRecord) {
   console.log(chalk.bold.white("━".repeat(60)));
   console.log(chalk.gray(`  Mode:      ${run.mode}`));
   if (run.preset) console.log(chalk.gray(`  Preset:    ${run.preset}`));
-  if (run.project) console.log(chalk.gray(`  Project:   ${run.project}`));
   console.log(chalk.gray(`  AIs:       ${run.ais.map(aiLabel).join(", ")}`));
   console.log(chalk.gray(`  Started:   ${run.started_at}`));
   console.log(chalk.gray(`  Finished:  ${run.finished_at}`));

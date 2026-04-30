@@ -15,16 +15,6 @@ export function getDb(): Database.Database {
   _db = new Database(DB_PATH);
   _db.pragma("journal_mode = WAL");
   _db.exec(`
-    CREATE TABLE IF NOT EXISTS memory (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      project TEXT NOT NULL DEFAULT 'global',
-      key TEXT NOT NULL,
-      value TEXT NOT NULL,
-      source TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(project, key)
-    );
     CREATE TABLE IF NOT EXISTS session_runs (
       id TEXT PRIMARY KEY,
       mode TEXT NOT NULL,
@@ -42,60 +32,6 @@ export function getDb(): Database.Database {
     );
   `);
   return _db;
-}
-
-export interface MemoryEntry {
-  project: string;
-  key: string;
-  value: string;
-  source: string | null;
-  updated_at: string;
-  created_at: string;
-}
-
-export function listMemory(project?: string): MemoryEntry[] {
-  const db = getDb();
-  const rows = project
-    ? db.prepare(
-        "SELECT project, key, value, source, updated_at, created_at FROM memory WHERE project = ? ORDER BY updated_at DESC"
-      ).all(project)
-    : db.prepare(
-        "SELECT project, key, value, source, updated_at, created_at FROM memory ORDER BY project, updated_at DESC"
-      ).all();
-  return rows as MemoryEntry[];
-}
-
-export function getMemory(project: string, key: string): MemoryEntry | null {
-  const db = getDb();
-  const row = db
-    .prepare("SELECT project, key, value, source, updated_at, created_at FROM memory WHERE project = ? AND key = ?")
-    .get(project, key) as MemoryEntry | undefined;
-  return row ?? null;
-}
-
-export function upsertMemory(project: string, key: string, value: string, source = "ui"): void {
-  const db = getDb();
-  db.prepare(`
-    INSERT INTO memory (project, key, value, source, updated_at)
-    VALUES (?, ?, ?, ?, datetime('now'))
-    ON CONFLICT(project, key) DO UPDATE SET
-      value = excluded.value,
-      source = excluded.source,
-      updated_at = excluded.updated_at
-  `).run(project, key, value, source);
-}
-
-export function deleteMemory(project: string, key: string): boolean {
-  const db = getDb();
-  const result = db.prepare("DELETE FROM memory WHERE project = ? AND key = ?").run(project, key);
-  return result.changes > 0;
-}
-
-export function listProjects(): Array<{ project: string; count: number }> {
-  const db = getDb();
-  return db
-    .prepare("SELECT project, COUNT(*) as count FROM memory GROUP BY project ORDER BY project")
-    .all() as Array<{ project: string; count: number }>;
 }
 
 interface SessionRunRow {

@@ -21,26 +21,6 @@ export function getDb(): Database.Database {
   // Mirror the server schema so the CLI can open the DB before the server
   // has ever been started. Each table is idempotent via IF NOT EXISTS.
   _db.exec(`
-    CREATE TABLE IF NOT EXISTS memory (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      project TEXT NOT NULL DEFAULT 'global',
-      key TEXT NOT NULL,
-      value TEXT NOT NULL,
-      source TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(project, key)
-    );
-
-    CREATE TABLE IF NOT EXISTS session_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id TEXT NOT NULL,
-      ai TEXT NOT NULL,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
     CREATE TABLE IF NOT EXISTS session_runs (
       id TEXT PRIMARY KEY,
       mode TEXT NOT NULL,
@@ -57,11 +37,7 @@ export function getDb(): Database.Database {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE INDEX IF NOT EXISTS idx_memory_project ON memory(project);
-    CREATE INDEX IF NOT EXISTS idx_memory_key ON memory(key);
-    CREATE INDEX IF NOT EXISTS idx_session_log_session ON session_log(session_id);
     CREATE INDEX IF NOT EXISTS idx_session_runs_mode ON session_runs(mode);
-    CREATE INDEX IF NOT EXISTS idx_session_runs_project ON session_runs(project);
     CREATE INDEX IF NOT EXISTS idx_session_runs_created ON session_runs(created_at);
   `);
 
@@ -172,7 +148,6 @@ function parseRow(row: SessionRunRow): SessionRunRecord {
 export function listSessionRuns(options: {
   limit?: number;
   mode?: "parallel" | "chain";
-  project?: string;
 } = {}): SessionRunRecord[] {
   const db = getDb();
   const limit = options.limit ?? 50;
@@ -181,10 +156,6 @@ export function listSessionRuns(options: {
   if (options.mode) {
     clauses.push("mode = ?");
     params.push(options.mode);
-  }
-  if (options.project) {
-    clauses.push("project = ?");
-    params.push(options.project);
   }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   const stmt = db.prepare(

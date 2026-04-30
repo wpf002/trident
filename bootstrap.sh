@@ -75,7 +75,7 @@ echo -e "${GREEN}  ✓ Dependencies installed${RESET}"
 
 # ─── Build TypeScript and UI ─────────────────────────────────────────────────
 
-echo -e "${GRAY}  Building packages (server, watcher, scheduler, ui-server, ui, cli)…${RESET}"
+echo -e "${GRAY}  Building packages (server, scheduler, ui-server, ui, cli)…${RESET}"
 npm run build
 
 echo -e "${GREEN}  ✓ Build complete${RESET}"
@@ -125,7 +125,6 @@ echo -e "     ${WHITE}trident parallel \"What is the MCP protocol?\" --diff --sc
 echo -e "     ${WHITE}trident chain \"Compare Rust and Go\" --mode research${RESET}"
 echo -e "     ${WHITE}trident sessions${RESET}"
 echo -e "     ${WHITE}trident ui${RESET}                  ${GRAY}# web dashboard at http://localhost:4242${RESET}"
-echo -e "     ${WHITE}trident watch${RESET}               ${GRAY}# auto-index data/docs/ into memory${RESET}"
 echo -e "     ${WHITE}trident schedule list${RESET}       ${GRAY}# manage scheduled chains${RESET}"
 echo ""
 echo -e "  6. (Optional) Google Workspace tools — drop credentials.json at the repo root, then:"

@@ -19,7 +19,6 @@ interface BaseRunMeta {
   started_at: string;
   finished_at: string;
   duration_ms: number;
-  project?: string;
   system_prompt?: string;
 }
 
@@ -52,7 +51,6 @@ export function formatRunMarkdown(run: RunMeta, extraSections: { title: string; 
     lines.push(`> **Order:** ${run.order.map(aiHeader).join(" → ")}`);
     if (run.preset) lines.push(`> **Preset:** \`${run.preset}\``);
   }
-  if (run.project) lines.push(`> **Project:** \`${run.project}\``);
 
   lines.push("");
   lines.push("## Prompt");

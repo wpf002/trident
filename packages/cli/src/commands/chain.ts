@@ -4,7 +4,6 @@ import { AI_MAP, AIMessage, AIName, AIResponse, DEFAULT_ORDER } from "../lib/cli
 import { CHAIN_PRESETS } from "@trident/core";
 import type { ModelTier } from "@trident/core";
 import { logSessionRun, SessionRunResponse } from "../lib/db.js";
-import { buildProjectContextBlock } from "../lib/context.js";
 import { formatRunMarkdown, writeRunOutput } from "../lib/output.js";
 
 export { CHAIN_PRESETS };
@@ -32,7 +31,6 @@ export interface ChainRunResult {
   duration_ms: number;
   preset: string | undefined;
   system_prompt: string | undefined;
-  project: string | undefined;
 }
 
 export async function runChain(
@@ -42,7 +40,6 @@ export async function runChain(
     preset?: string;
     system?: string;
     showIntermediate?: boolean;
-    project?: string;
     persist?: boolean;
     quiet?: boolean;
     metadata?: Record<string, unknown>;
@@ -64,17 +61,12 @@ export async function runChain(
     order = options.order ?? DEFAULT_ORDER;
   }
 
-  const projectBlock = options.project ? buildProjectContextBlock(options.project) : null;
-
   if (!options.quiet) {
     console.log("\n" + chalk.bold.white("━".repeat(60)));
     console.log(chalk.bold.white("  TRIDENT — CHAIN MODE"));
     console.log(chalk.bold.white("━".repeat(60)));
     console.log(chalk.gray(`  Order: ${order.map((a) => AI_LABELS[a]).join(" → ")}`));
     console.log(chalk.gray(`  Prompt: ${prompt.slice(0, 80)}${prompt.length > 80 ? "…" : ""}`));
-    if (options.project) {
-      console.log(chalk.gray(`  Project: ${options.project}${projectBlock ? " (context injected)" : " (no entries)"}`));
-    }
     console.log(chalk.bold.white("━".repeat(60)) + "\n");
   }
 
@@ -102,7 +94,7 @@ export async function runChain(
       });
     }
 
-    const baseSystemPrompt =
+    const systemPrompt =
       systemPrompts[ai] ??
       options.system ??
       (i === 0
@@ -110,10 +102,6 @@ export async function runChain(
         : i === order.length - 1
         ? "You are the final AI in a chain. Synthesize all previous responses into a definitive answer."
         : "You are in the middle of a chain. Build on the previous response.");
-
-    const systemPrompt = projectBlock
-      ? `${projectBlock}\n\n---\n\n${baseSystemPrompt}`
-      : baseSystemPrompt;
 
     const showLive = !options.quiet && (options.showIntermediate || isLast);
     if (showLive) {
@@ -197,7 +185,7 @@ export async function runChain(
         id: runId,
         mode: "chain",
         prompt,
-        project: options.project ?? null,
+        project: null,
         ais: order,
         responses,
         duration_ms: durationMs,
@@ -226,7 +214,6 @@ export async function runChain(
         started_at: startedAt,
         finished_at: finishedAt,
         duration_ms: durationMs,
-        project: options.project,
         preset: options.preset,
         system_prompt: options.system,
       });
@@ -255,7 +242,6 @@ export async function runChain(
     duration_ms: durationMs,
     preset: options.preset,
     system_prompt: options.system,
-    project: options.project,
   };
 }
 

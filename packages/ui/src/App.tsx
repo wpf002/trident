@@ -1,19 +1,19 @@
 import { useState } from "react";
-import { MemoryView } from "./components/MemoryView.js";
 import { SessionsView } from "./components/SessionsView.js";
 import { QueryView } from "./components/QueryView.js";
+import { Brand } from "./components/Brand.js";
 
-type Tab = "query" | "memory" | "sessions";
+type Tab = "query" | "sessions";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("query");
 
+  // Both views stay mounted; we toggle visibility with `view-hidden` so
+  // QueryView state (in-flight runs, form values) survives tab switches.
   return (
     <div className="app">
       <aside className="sidebar">
-        <h1>
-          <span className="accent">▲</span> Trident
-        </h1>
+        <Brand />
         <button
           className={"nav-item" + (tab === "query" ? " active" : "")}
           onClick={() => setTab("query")}
@@ -21,26 +21,20 @@ export function App() {
           Query
         </button>
         <button
-          className={"nav-item" + (tab === "memory" ? " active" : "")}
-          onClick={() => setTab("memory")}
-        >
-          Memory
-        </button>
-        <button
           className={"nav-item" + (tab === "sessions" ? " active" : "")}
           onClick={() => setTab("sessions")}
         >
           Sessions
         </button>
-        <div style={{ flex: 1 }} />
-        <div className="muted tiny" style={{ padding: "8px 12px" }}>
-          Multi-AI orchestration
-        </div>
+        <div className="sidebar-footer">v1.0 · localhost:4242</div>
       </aside>
       <main className="main">
-        {tab === "query" && <QueryView />}
-        {tab === "memory" && <MemoryView />}
-        {tab === "sessions" && <SessionsView />}
+        <div className={"view" + (tab !== "query" ? " view-hidden" : "")}>
+          <QueryView />
+        </div>
+        <div className={"view" + (tab !== "sessions" ? " view-hidden" : "")}>
+          <SessionsView />
+        </div>
       </main>
     </div>
   );

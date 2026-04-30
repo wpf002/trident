@@ -6,16 +6,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { nanoid } from "nanoid";
-import {
-  listMemory,
-  getMemory,
-  upsertMemory,
-  deleteMemory,
-  listProjects,
-  listSessions,
-  getSession,
-  insertSession,
-} from "./db.js";
+import { listSessions, getSession, insertSession } from "./db.js";
 import {
   AI_MAP,
   AIMessage,
@@ -35,69 +26,9 @@ dotenv.config({ path: path.join(REPO_ROOT, ".env") });
 const PORT = parseInt(process.env.TRIDENT_UI_PORT ?? "4242", 10);
 const STATIC_DIR = path.join(__dirname, "..", "static");
 
-function buildProjectContext(project: string | undefined): string | null {
-  if (!project) return null;
-  const entries = listMemory(project);
-  if (entries.length === 0) return null;
-  const lines: string[] = [
-    `## Project Context: ${project}`,
-    "",
-    `The following ${entries.length} memory entries are scoped to project "${project}".`,
-    "",
-  ];
-  let total = lines.join("\n").length;
-  for (const e of entries) {
-    const value = e.value.length > 4000 ? e.value.slice(0, 4000) + "\n…[truncated]" : e.value;
-    const block = `### ${e.key}\n${value}\n`;
-    if (total + block.length > 24000) {
-      lines.push("_…additional entries omitted (context budget)._");
-      break;
-    }
-    lines.push(block);
-    total += block.length;
-  }
-  return lines.join("\n");
-}
-
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "5mb" }));
-
-// ─── Memory ──────────────────────────────────────────────────────────────────
-
-app.get("/api/memory", (req: Request, res: Response) => {
-  const project = typeof req.query.project === "string" ? req.query.project : undefined;
-  res.json({ entries: listMemory(project) });
-});
-
-app.get("/api/memory/projects", (_req: Request, res: Response) => {
-  res.json({ projects: listProjects() });
-});
-
-app.get("/api/memory/:project/:key", (req: Request, res: Response) => {
-  const entry = getMemory(req.params.project, req.params.key);
-  if (!entry) {
-    res.status(404).json({ error: "not_found" });
-    return;
-  }
-  res.json({ entry });
-});
-
-app.put("/api/memory/:project/:key", (req: Request, res: Response) => {
-  const { project, key } = req.params;
-  const value = (req.body?.value ?? "") as string;
-  if (typeof value !== "string") {
-    res.status(400).json({ error: "value must be a string" });
-    return;
-  }
-  upsertMemory(project, key, value, "ui");
-  res.json({ entry: getMemory(project, key) });
-});
-
-app.delete("/api/memory/:project/:key", (req: Request, res: Response) => {
-  const ok = deleteMemory(req.params.project, req.params.key);
-  res.json({ deleted: ok });
-});
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
@@ -122,7 +53,6 @@ interface QueryBody {
   ais?: AIName[];
   preset?: string;
   system?: string;
-  project?: string;
   tier?: ModelTier;
   diff?: boolean;
   score?: boolean;
@@ -187,7 +117,6 @@ function parseQuery(body: unknown): QueryBody | { error: string } {
   }
   if (b.preset !== undefined && typeof b.preset !== "string") return { error: "preset must be a string" };
   if (b.system !== undefined && typeof b.system !== "string") return { error: "system must be a string" };
-  if (b.project !== undefined && typeof b.project !== "string") return { error: "project must be a string" };
   if (b.tier !== undefined && (typeof b.tier !== "string" || !VALID_TIERS.has(b.tier))) {
     return { error: "tier must be one of: premium, main, utility" };
   }
@@ -199,7 +128,6 @@ function parseQuery(body: unknown): QueryBody | { error: string } {
     ais,
     preset: b.preset as string | undefined,
     system: b.system as string | undefined,
-    project: b.project as string | undefined,
     tier: b.tier as ModelTier | undefined,
     diff: b.diff as boolean | undefined,
     score: b.score as boolean | undefined,
@@ -228,7 +156,6 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
   const runId = nanoid(12);
   const startedAt = new Date().toISOString();
   const runStart = Date.now();
-  const projectBlock = buildProjectContext(parsed.project);
 
   let order: AIName[];
   let systemPrompts: Partial<Record<AIName, string>> = {};
@@ -240,7 +167,7 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
     order = parsed.ais ?? ["claude", "gpt", "perplexity"];
   }
 
-  send("start", { id: runId, mode: parsed.mode, order, project: parsed.project ?? null, started_at: startedAt });
+  send("start", { id: runId, mode: parsed.mode, order, started_at: startedAt });
 
   interface TimedResponse extends AIResponse {
     started_at: string;
@@ -268,15 +195,14 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
   };
 
   if (parsed.mode === "parallel") {
-    const baseSystem = projectBlock
-      ? (parsed.system ? `${projectBlock}\n\n---\n\n${parsed.system}` : projectBlock)
-      : parsed.system;
-    await Promise.all(order.map((ai) => streamAi(ai, [{ role: "user", content: parsed.prompt }], baseSystem)));
+    await Promise.all(
+      order.map((ai) => streamAi(ai, [{ role: "user", content: parsed.prompt }], parsed.system))
+    );
   } else {
     const conversation: AIMessage[] = [{ role: "user", content: parsed.prompt }];
     for (let i = 0; i < order.length; i++) {
       const ai = order[i];
-      const baseSystem =
+      const system =
         systemPrompts[ai] ??
         parsed.system ??
         (i === 0
@@ -284,7 +210,6 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
           : i === order.length - 1
           ? "You are the final AI in a chain. Synthesize all previous responses into a definitive answer."
           : "You are in the middle of a chain. Build on the previous response.");
-      const system = projectBlock ? `${projectBlock}\n\n---\n\n${baseSystem}` : baseSystem;
 
       const ctx = [...conversation];
       if (i > 0) {
@@ -352,7 +277,7 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
       id: runId,
       mode: parsed.mode,
       prompt: parsed.prompt,
-      project: parsed.project ?? null,
+      project: null,
       ais: order,
       responses: collected.map((r) => ({
         ai: r.ai,

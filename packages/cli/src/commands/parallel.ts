@@ -4,7 +4,6 @@ import { nanoid } from "nanoid";
 import { AI_MAP, AIMessage, AIName, AIResponse, DEFAULT_ORDER } from "../lib/clients.js";
 import type { ModelTier } from "@trident/core";
 import { logSessionRun, SessionRunResponse } from "../lib/db.js";
-import { injectProjectContext } from "../lib/context.js";
 import { formatRunMarkdown, writeRunOutput } from "../lib/output.js";
 import { runDiffSynthesis, runConfidenceScoring, ConfidenceReport } from "../lib/synthesis.js";
 
@@ -95,7 +94,6 @@ export interface ParallelRunResult {
   finished_at: string;
   duration_ms: number;
   system_prompt: string | undefined;
-  project: string | undefined;
 }
 
 export async function runParallel(
@@ -105,7 +103,6 @@ export async function runParallel(
     system?: string;
     history?: AIMessage[];
     quiet?: boolean;
-    project?: string;
     persist?: boolean;
     metadata?: Record<string, unknown>;
     output?: string;
@@ -120,17 +117,11 @@ export async function runParallel(
     { role: "user", content: prompt },
   ];
 
-  const effectiveSystem = injectProjectContext(options.system, options.project);
-
   if (!options.quiet) {
     console.log("\n" + chalk.bold.white("━".repeat(60)));
     console.log(chalk.bold.white("  TRIDENT — PARALLEL MODE"));
     console.log(chalk.bold.white("━".repeat(60)));
     console.log(chalk.gray(`  Prompt: ${prompt.slice(0, 80)}${prompt.length > 80 ? "…" : ""}`));
-    if (options.project) {
-      const injected = effectiveSystem !== options.system;
-      console.log(chalk.gray(`  Project: ${options.project}${injected ? " (context injected)" : " (no entries)"}`));
-    }
     console.log(chalk.bold.white("━".repeat(60)) + "\n");
   }
 
@@ -164,7 +155,7 @@ export async function runParallel(
     ais.map(async (ai) => {
       const aiStart = Date.now();
       const aiStartedAt = new Date().toISOString();
-      const result = await AI_MAP[ai](messages, effectiveSystem, {
+      const result = await AI_MAP[ai](messages, options.system, {
         tier: options.tier ?? "main",
         tokens: options.quiet
           ? undefined
@@ -274,7 +265,7 @@ export async function runParallel(
         id: runId,
         mode: "parallel",
         prompt,
-        project: options.project ?? null,
+        project: null,
         ais,
         responses,
         duration_ms: durationMs,
@@ -304,8 +295,7 @@ export async function runParallel(
           started_at: startedAt,
           finished_at: finishedAt,
           duration_ms: durationMs,
-          project: options.project,
-          system_prompt: effectiveSystem,
+          system_prompt: options.system,
         },
         extraSections
       );
@@ -333,6 +323,5 @@ export async function runParallel(
     finished_at: finishedAt,
     duration_ms: durationMs,
     system_prompt: options.system,
-    project: options.project,
   };
 }

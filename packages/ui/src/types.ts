@@ -1,12 +1,3 @@
-export interface MemoryEntry {
-  project: string;
-  key: string;
-  value: string;
-  source: string | null;
-  updated_at: string;
-  created_at: string;
-}
-
 export interface SessionResponse {
   ai: string;
   content: string;
@@ -14,6 +5,8 @@ export interface SessionResponse {
   duration_ms: number;
   started_at: string;
   finished_at: string;
+  model?: string;
+  usage?: { input_tokens: number; output_tokens: number };
 }
 
 export interface SessionRun {

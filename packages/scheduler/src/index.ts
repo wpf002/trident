@@ -25,8 +25,6 @@ export interface Schedule {
   preset?: string;
   order?: AIName[];
   output?: string;
-  memory_key?: string;
-  project?: string;
   system?: string;
 }
 
@@ -86,12 +84,6 @@ function validateSchedule(entry: unknown, index: number): Schedule {
   if (e.output !== undefined && typeof e.output !== "string") {
     throw new Error(`schedules[${index}].output must be a string path`);
   }
-  if (e.memory_key !== undefined && typeof e.memory_key !== "string") {
-    throw new Error(`schedules[${index}].memory_key must be a string`);
-  }
-  if (e.project !== undefined && typeof e.project !== "string") {
-    throw new Error(`schedules[${index}].project must be a string`);
-  }
   if (e.system !== undefined && typeof e.system !== "string") {
     throw new Error(`schedules[${index}].system must be a string`);
   }
@@ -105,8 +97,6 @@ function validateSchedule(entry: unknown, index: number): Schedule {
     preset: e.preset as string | undefined,
     order: e.order as AIName[] | undefined,
     output: e.output as string | undefined,
-    memory_key: e.memory_key as string | undefined,
-    project: e.project as string | undefined,
     system: e.system as string | undefined,
   };
 }
@@ -133,16 +123,6 @@ function ensureDb(): Database.Database {
   const db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
   db.exec(`
-    CREATE TABLE IF NOT EXISTS memory (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      project TEXT NOT NULL DEFAULT 'global',
-      key TEXT NOT NULL,
-      value TEXT NOT NULL,
-      source TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(project, key)
-    );
     CREATE TABLE IF NOT EXISTS session_runs (
       id TEXT PRIMARY KEY,
       mode TEXT NOT NULL,
@@ -160,17 +140,6 @@ function ensureDb(): Database.Database {
     );
   `);
   return db;
-}
-
-function writeMemory(db: Database.Database, project: string, key: string, value: string) {
-  db.prepare(`
-    INSERT INTO memory (project, key, value, source, updated_at)
-    VALUES (?, ?, ?, 'scheduler', datetime('now'))
-    ON CONFLICT(project, key) DO UPDATE SET
-      value = excluded.value,
-      source = excluded.source,
-      updated_at = excluded.updated_at
-  `).run(project, key, value);
 }
 
 interface PersistedRun {
@@ -301,17 +270,11 @@ export async function runScheduledJob(
     log(chalk.gray(`    → output: ${absOutput}`));
   }
 
-  if (schedule.memory_key) {
-    const project = schedule.project ?? "global";
-    writeMemory(db, project, schedule.memory_key, finalContent);
-    log(chalk.gray(`    → memory: [${project}] ${schedule.memory_key}`));
-  }
-
   try {
     persistRun(db, {
       id: runId,
       prompt: schedule.prompt,
-      project: schedule.project ?? null,
+      project: null,
       order,
       responses,
       duration_ms: durationMs,
@@ -357,7 +320,6 @@ function formatRunMarkdown(
   lines.push(`> **Duration:** ${durationMs}ms`);
   lines.push(`> **Order:** ${order.map((a) => AI_LABELS[a]).join(" → ")}`);
   if (schedule.preset) lines.push(`> **Preset:** \`${schedule.preset}\``);
-  if (schedule.project) lines.push(`> **Project:** \`${schedule.project}\``);
   lines.push("");
   lines.push("## Prompt");
   lines.push("");
@@ -404,7 +366,6 @@ export function scheduleList() {
     console.log(`    ${chalk.gray("Prompt:")} ${s.prompt.slice(0, 80)}${s.prompt.length > 80 ? "…" : ""}`);
     console.log(`    ${chalk.gray("Order: ")} ${order.map((a) => AI_LABELS[a]).join(" → ")}${s.preset ? chalk.gray(`  (preset: ${s.preset})`) : ""}`);
     if (s.output) console.log(`    ${chalk.gray("Output:")} ${s.output}`);
-    if (s.memory_key) console.log(`    ${chalk.gray("Memory:")} [${s.project ?? "global"}] ${s.memory_key}`);
     const last = state.runs[s.id];
     if (last) {
       const statusColor = last.last_status === "ok" ? chalk.green : chalk.red;

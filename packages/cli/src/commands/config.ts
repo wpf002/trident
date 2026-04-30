@@ -46,7 +46,7 @@ export function configShow() {
     { label: "trident.config.json", path: path.join(REPO_ROOT, "trident.config.json"), description: "Routing modes" },
     { label: "schedules.json", path: path.join(REPO_ROOT, "schedules.json"), description: "Scheduled chains" },
     { label: "credentials.json", path: path.join(REPO_ROOT, "credentials.json"), description: "Google OAuth client" },
-    { label: "data/trident.db", path: path.join(REPO_ROOT, "data", "trident.db"), description: "SQLite store (memory + sessions)" },
+    { label: "data/trident.db", path: path.join(REPO_ROOT, "data", "trident.db"), description: "SQLite store (sessions)" },
     { label: "data/google-token.json", path: path.join(REPO_ROOT, "data", "google-token.json"), description: "Google OAuth token" },
   ];
   for (const f of files) {

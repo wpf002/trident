@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { aiLabel, AIName } from "../types.js";
+import { MarkdownView } from "./MarkdownView.js";
 
 interface StreamResponse {
   ai: AIName;
@@ -40,7 +41,12 @@ interface RunState {
 type Tier = "premium" | "main" | "utility";
 
 const ALL_AIS: AIName[] = ["claude", "gpt", "perplexity"];
-const PRESETS = ["draft-refine-verify", "research-analyze-summarize", "attack-defend-judge"];
+const PRESETS = [
+  "draft-refine-verify",
+  "research-analyze-summarize",
+  "attack-defend-judge",
+  "research-ideate-build",
+];
 
 interface RawResponseEvent {
   ai: AIName;
@@ -67,7 +73,6 @@ export function QueryView() {
   const [ais, setAis] = useState<AIName[]>([...ALL_AIS]);
   const [preset, setPreset] = useState<string>("");
   const [system, setSystem] = useState("");
-  const [project, setProject] = useState("");
   const [tier, setTier] = useState<Tier>("main");
   const [diff, setDiff] = useState(false);
   const [score, setScore] = useState(false);
@@ -92,10 +97,9 @@ export function QueryView() {
     const body = {
       prompt,
       mode,
-      ais: mode === "parallel" ? ais : ais,
+      ais,
       preset: mode === "chain" && preset ? preset : undefined,
       system: system || undefined,
-      project: project || undefined,
       tier,
       diff: mode === "parallel" ? diff : undefined,
       score: mode === "parallel" ? score : undefined,
@@ -239,7 +243,6 @@ export function QueryView() {
       });
     };
 
-    // Parse the SSE stream incrementally.
     const parseBuffer = () => {
       let idx;
       while ((idx = buffer.indexOf("\n\n")) >= 0) {
@@ -272,84 +275,112 @@ export function QueryView() {
 
   return (
     <div>
-      <h2 className="title">Query</h2>
-      <p className="subtitle">Run a prompt across the AIs. Results stream in as each completes.</p>
+      <header className="page-header">
+        <h2 className="page-title">Query</h2>
+        <p className="page-subtitle">
+          Run a prompt across the AIs. Results stream in token-by-token as each completes.
+        </p>
+        <div className="divider" />
+      </header>
 
       <div className="card">
         <div className="column">
           <div>
-            <div className="muted tiny">Prompt</div>
-            <textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+            <div className="label">Prompt</div>
+            <textarea
+              rows={4}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="What would you like to ask?"
+            />
           </div>
           <div className="row">
             <div style={{ minWidth: 140 }}>
-              <div className="muted tiny">Mode</div>
+              <div className="label">Mode</div>
               <select value={mode} onChange={(e) => setMode(e.target.value as "parallel" | "chain")}>
                 <option value="parallel">Parallel</option>
                 <option value="chain">Chain</option>
               </select>
             </div>
             {mode === "chain" && (
-              <div style={{ minWidth: 200 }}>
-                <div className="muted tiny">Preset</div>
+              <div style={{ minWidth: 220 }}>
+                <div className="label">Preset</div>
                 <select value={preset} onChange={(e) => setPreset(e.target.value)}>
-                  <option value="">— custom order —</option>
+                  <option value="">Custom order</option>
                   {PRESETS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
                   ))}
                 </select>
               </div>
             )}
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div className="muted tiny">Project (optional)</div>
-              <input value={project} onChange={(e) => setProject(e.target.value)} placeholder="memory namespace" />
-            </div>
           </div>
           <div>
-            <div className="muted tiny">AIs {mode === "chain" && preset ? "(overridden by preset)" : ""}</div>
+            <div className="label">
+              AIs {mode === "chain" && preset ? "(overridden by preset)" : ""}
+            </div>
             <div className="row">
-              {ALL_AIS.map((ai) => (
-                <button
-                  key={ai}
-                  onClick={() => toggleAi(ai)}
-                  className={ais.includes(ai) ? "primary" : ""}
-                  style={{ minWidth: 110 }}
-                  disabled={mode === "chain" && !!preset}
-                >
-                  {aiLabel(ai)}
-                </button>
-              ))}
+              {ALL_AIS.map((ai) => {
+                const active = ais.includes(ai);
+                return (
+                  <button
+                    key={ai}
+                    onClick={() => toggleAi(ai)}
+                    className={active ? "primary" : "secondary"}
+                    style={{ minWidth: 120 }}
+                    disabled={mode === "chain" && !!preset}
+                  >
+                    {aiLabel(ai)}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="row">
-            <div style={{ minWidth: 160 }}>
-              <div className="muted tiny">Model tier</div>
+            <div style={{ minWidth: 220 }}>
+              <div className="label">Model tier</div>
               <select value={tier} onChange={(e) => setTier(e.target.value as Tier)}>
-                <option value="utility">Fast / Cheap (Haiku · 4o-mini · sonar)</option>
-                <option value="main">Main (Sonnet · 4o-mini · sonar-pro)</option>
-                <option value="premium">Premium (Opus · 4o · sonar-reasoning)</option>
+                <option value="utility">Fast — Haiku · 4o-mini · sonar</option>
+                <option value="main">Main — Sonnet · 4o-mini · sonar-pro</option>
+                <option value="premium">Premium — Opus · 4o · sonar-reasoning</option>
               </select>
             </div>
             {mode === "parallel" && (
-              <div className="row" style={{ gap: 14 }}>
-                <label className="row" style={{ gap: 6, cursor: "pointer" }}>
+              <div className="row" style={{ gap: 16, marginTop: 22 }}>
+                <label className="row" style={{ gap: 8, cursor: "pointer" }}>
                   <input type="checkbox" checked={diff} onChange={(e) => setDiff(e.target.checked)} />
-                  <span className="muted tiny">Synthesize (--diff)</span>
+                  <span className="muted tiny">Synthesize (diff)</span>
                 </label>
-                <label className="row" style={{ gap: 6, cursor: "pointer" }}>
-                  <input type="checkbox" checked={score} onChange={(e) => setScore(e.target.checked)} />
-                  <span className="muted tiny">Confidence (--score)</span>
+                <label className="row" style={{ gap: 8, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={score}
+                    onChange={(e) => setScore(e.target.checked)}
+                  />
+                  <span className="muted tiny">Confidence (score)</span>
                 </label>
               </div>
             )}
           </div>
           <div>
-            <div className="muted tiny">System prompt (optional)</div>
-            <textarea rows={2} value={system} onChange={(e) => setSystem(e.target.value)} />
+            <div className="label">System prompt (optional)</div>
+            <textarea
+              rows={2}
+              value={system}
+              onChange={(e) => setSystem(e.target.value)}
+              placeholder="Optional persona or instructions applied to every model call"
+            />
           </div>
           <div className="row">
             <button className="primary" onClick={start} disabled={run?.status === "running"}>
-              {run?.status === "running" ? <><span className="spinner" /> Running…</> : "Run"}
+              {run?.status === "running" ? (
+                <span className="row" style={{ gap: 8 }}>
+                  <span className="spinner" /> Running…
+                </span>
+              ) : (
+                "Run"
+              )}
             </button>
             {error && <span className="error">{error}</span>}
           </div>
@@ -357,84 +388,106 @@ export function QueryView() {
       </div>
 
       {run && (
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 20 }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
             <div className="row">
-              <span className="muted tiny">Session</span>
-              <span style={{ fontFamily: "ui-monospace, monospace" }}>{run.id}</span>
+              <span className="label" style={{ margin: 0 }}>
+                Session
+              </span>
+              <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 12 }}>{run.id}</span>
               {run.status === "running" && <span className="spinner" />}
             </div>
-            {run.durationMs !== undefined && <span className="muted tiny">{run.durationMs}ms</span>}
+            {run.durationMs !== undefined && (
+              <span className="muted tiny">{run.durationMs}ms</span>
+            )}
           </div>
           <div className="divider" />
+
           {run.responses.length === 0 && run.status === "running" && (
             <div className="muted">Waiting for first response…</div>
           )}
+
           {run.responses.map((r, i) => (
             <div key={i} className="card">
-              <div className="row" style={{ justifyContent: "space-between" }}>
+              <div className="card-header">
                 <div className="row">
                   <span className={"tag " + r.ai}>{aiLabel(r.ai)}</span>
-                  {r.step && r.total && <span className="muted tiny">step {r.step}/{r.total}</span>}
+                  {r.step && r.total && (
+                    <span className="muted tiny">
+                      step {r.step}/{r.total}
+                    </span>
+                  )}
                 </div>
                 <span className="muted tiny">{r.duration_ms}ms</span>
               </div>
-              {r.error ? <div className="error" style={{ marginTop: 8 }}>{r.error}</div> : <pre>{r.content}</pre>}
+              {r.error ? (
+                <div className="error">{r.error}</div>
+              ) : (
+                <MarkdownView text={r.content} />
+              )}
             </div>
           ))}
+
           {Array.from(run.active).map((ai) => {
             const partial = run.partial[ai] ?? "";
             const step = run.partialStep?.[ai];
             return (
-              <div key={"active-" + ai} className="card">
-                <div className="row" style={{ justifyContent: "space-between" }}>
+              <div key={"active-" + ai} className="card bordered-blue">
+                <div className="card-header">
                   <div className="row">
                     <span className={"tag " + ai}>{aiLabel(ai)}</span>
-                    {step && <span className="muted tiny">step {step.step}/{step.total}</span>}
+                    {step && (
+                      <span className="muted tiny">
+                        step {step.step}/{step.total}
+                      </span>
+                    )}
                     <span className="spinner" />
                   </div>
                   <span className="muted tiny">streaming…</span>
                 </div>
                 {partial.length === 0 ? (
-                  <div className="muted" style={{ marginTop: 8 }}>thinking…</div>
+                  <div className="muted">thinking…</div>
                 ) : (
-                  <pre>{partial}<span className="cursor">▍</span></pre>
+                  <div>
+                    <MarkdownView text={partial} />
+                    <span className="cursor">▍</span>
+                  </div>
                 )}
               </div>
             );
           })}
 
           {(run.diffActive || run.diffContent || run.diffError || run.diffPartial) && (
-            <div className="card" style={{ borderColor: "var(--accent)" }}>
-              <div className="row" style={{ justifyContent: "space-between" }}>
+            <div className="card bordered-gold">
+              <div className="card-header">
                 <div className="row">
-                  <span className="tag claude">Synthesis (--diff)</span>
+                  <span className="tag claude">Synthesis</span>
                   {run.diffActive && <span className="spinner" />}
                 </div>
                 <span className="muted tiny">{run.diffActive ? "streaming…" : "done"}</span>
               </div>
               {run.diffError ? (
-                <div className="error" style={{ marginTop: 8 }}>{run.diffError}</div>
+                <div className="error">{run.diffError}</div>
               ) : (
-                <pre>
-                  {run.diffContent ?? run.diffPartial ?? ""}
+                <div>
+                  <MarkdownView text={run.diffContent ?? run.diffPartial ?? ""} />
                   {run.diffActive && <span className="cursor">▍</span>}
-                </pre>
+                </div>
               )}
             </div>
           )}
 
           {(run.scoreActive || run.scoreReport || run.scoreError) && (
-            <div className="card" style={{ borderColor: "var(--accent-2)" }}>
-              <div className="row" style={{ justifyContent: "space-between" }}>
+            <div className="card bordered-blue">
+              <div className="card-header">
                 <div className="row">
-                  <span className="tag perplexity">Confidence (--score)</span>
+                  <span className="tag perplexity">Confidence</span>
                   {run.scoreActive && <span className="spinner" />}
                 </div>
                 <span className="muted tiny">{run.scoreActive ? "scoring…" : "done"}</span>
               </div>
               {run.scoreError ? (
-                <div className="error" style={{ marginTop: 8 }}>{run.scoreError}</div>
+                <div className="error">{run.scoreError}</div>
               ) : run.scoreReport ? (
                 <ConfidenceReportView report={run.scoreReport} />
               ) : null}
@@ -455,39 +508,52 @@ interface ConfidenceReport {
 
 function ConfidenceReportView({ report }: { report: ConfidenceReport }) {
   const agreementColor =
-    report.agreement === "high" ? "var(--green)" : report.agreement === "medium" ? "var(--yellow)" : "var(--red)";
+    report.agreement === "high"
+      ? "var(--green)"
+      : report.agreement === "medium"
+      ? "var(--yellow)"
+      : "var(--red)";
   return (
-    <div className="column" style={{ marginTop: 8 }}>
+    <div className="column">
       {report.scores.map((s) => {
-        const barWidth = Math.max(0, Math.min(100, s.confidence));
-        const barColor =
-          s.confidence >= 75 ? "var(--green)" : s.confidence >= 50 ? "var(--yellow)" : "var(--red)";
+        const w = Math.max(0, Math.min(100, s.confidence));
         return (
           <div key={s.ai}>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <span className={"tag " + s.ai}>{aiLabel(s.ai)}</span>
               <span className="muted tiny">{s.confidence}/100</span>
             </div>
-            <div style={{ height: 6, background: "var(--bg-elev-2)", borderRadius: 3, marginTop: 4 }}>
-              <div style={{ width: `${barWidth}%`, height: "100%", background: barColor, borderRadius: 3 }} />
+            <div className="confidence-bar">
+              <div style={{ width: `${w}%` }} />
             </div>
-            <div className="muted tiny" style={{ marginTop: 4 }}>{s.rationale}</div>
+            <div className="muted tiny" style={{ marginTop: 4 }}>
+              {s.rationale}
+            </div>
           </div>
         );
       })}
       <div className="muted tiny">
-        Overall agreement: <span style={{ color: agreementColor }}>{report.agreement}</span>
+        Overall agreement:{" "}
+        <span style={{ color: agreementColor, fontWeight: 600 }}>{report.agreement}</span>
       </div>
       {report.consensus.length > 0 && (
         <div>
-          <div className="muted tiny">Consensus</div>
-          <ul style={{ margin: "4px 0 0 16px" }}>{report.consensus.map((c, i) => <li key={i}>{c}</li>)}</ul>
+          <div className="label">Consensus</div>
+          <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
+            {report.consensus.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
         </div>
       )}
       {report.disagreement.length > 0 && (
         <div>
-          <div className="muted tiny">Disagreement</div>
-          <ul style={{ margin: "4px 0 0 16px" }}>{report.disagreement.map((d, i) => <li key={i}>{d}</li>)}</ul>
+          <div className="label">Disagreement</div>
+          <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
+            {report.disagreement.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

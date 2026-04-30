@@ -9,7 +9,6 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { memoryTools, handleMemoryTool } from "./tools/memory.js";
 import { searchTools, handleSearchTool } from "./tools/search.js";
 import { fileTools, handleFileTool } from "./tools/files.js";
 import { apiTools, handleApiTool } from "./tools/api.js";
@@ -20,7 +19,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 const allTools = [
-  ...memoryTools,
   ...searchTools,
   ...fileTools,
   ...apiTools,
@@ -53,9 +51,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     let result: string;
 
-    if (memoryTools.some((t) => t.name === name)) {
-      result = handleMemoryTool(name, safeArgs);
-    } else if (searchTools.some((t) => t.name === name)) {
+    if (searchTools.some((t) => t.name === name)) {
       result = await handleSearchTool(name, safeArgs);
     } else if (fileTools.some((t) => t.name === name)) {
       result = handleFileTool(name, safeArgs);

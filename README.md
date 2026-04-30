@@ -1,6 +1,6 @@
 # Trident
 
-Multi-AI orchestration layer with shared context. Connects Claude, ChatGPT, and Perplexity to a single MCP server — shared memory, shared docs, shared tools, parallel and chained query modes, a web dashboard, scheduled jobs, file watcher, and synthesis/scoring.
+Multi-AI orchestration layer. Connects Claude, ChatGPT, and Perplexity to a single MCP server — shared docs, shared tools, parallel and chained query modes, a web dashboard, scheduled jobs, and synthesis/scoring.
 
 ---
 
@@ -8,7 +8,6 @@ Multi-AI orchestration layer with shared context. Connects Claude, ChatGPT, and 
 
 | Feature | Description |
 | --- | --- |
-| **Shared Memory** | Any AI can read/write to a SQLite store scoped by project |
 | **Shared Docs** | Drop files in `data/docs/` — all AIs can read them via MCP |
 | **Web Search** | Tavily integration exposed as an MCP tool |
 | **Perplexity MCP tool** | Claude/ChatGPT can call `perplexity_search` for live, cited answers |
@@ -16,15 +15,13 @@ Multi-AI orchestration layer with shared context. Connects Claude, ChatGPT, and 
 | **External APIs** | Allowlisted API fetcher (news, finance, weather, etc.) |
 | **Parallel Mode** | Fire one prompt at all three AIs, compare side-by-side |
 | **Chain Mode** | Output of AI #1 → input to AI #2 → input to AI #3 |
-| **Chain Presets** | `draft-refine-verify`, `research-analyze-summarize`, `attack-defend-judge` |
+| **Chain Presets** | `draft-refine-verify`, `research-analyze-summarize`, `attack-defend-judge`, `research-ideate-build` |
 | **Routing Config** | `trident.config.json` defines named routes (`--mode research`) |
-| **Project Context** | `--project foo` auto-injects all memory entries for that project |
 | **Markdown Output** | `--output path.md` writes a formatted run transcript |
 | **Diff Synthesis** | `--diff` adds Claude-led agreement/disagreement/conflict analysis |
 | **Confidence Scoring** | `--score` adds per-AI confidence and consensus levels |
 | **Session Replay** | Every parallel/chain run is logged; `trident sessions` lists & replays |
-| **Web UI** | Dark dashboard at `http://localhost:4242` — memory browser, sessions, query interface with live streaming |
-| **File Watcher** | `trident watch` extracts key facts from new/changed docs into memory |
+| **Web UI** | Dark dashboard at `http://localhost:4242` — query interface with live streaming, session history |
 | **Scheduler** | `schedules.json` + node-cron run chains on a schedule |
 | **Route Detection** | `trident route detect <prompt>` asks Claude which mode fits |
 
@@ -93,7 +90,7 @@ trident google status                           # check Google OAuth setup
 trident parallel "What are the tradeoffs between RAG and fine-tuning?"
 trident parallel "Summarize this topic" --ais claude,gpt
 trident parallel "Compare these frameworks" --diff --score
-trident parallel "Plan the BHIS migration" --project BHIS --output runs/bhis.md
+trident parallel "Plan the BHIS migration" --output runs/bhis.md
 ```
 
 ### Chain mode
@@ -108,7 +105,7 @@ trident chain "Audit this proposal" --show-intermediate
 
 ### Model tiers (cost vs quality)
 
-By default Trident uses the **main** tier — Sonnet 4.6 / GPT-4o-mini / sonar-pro — strong quality at low cost. Internal calls (route detection, synthesis, scoring, watcher fact extraction) automatically use the cheaper **utility** tier (Haiku 4.5 / GPT-4o-mini / sonar). Override per-call:
+By default Trident uses the **main** tier — Sonnet 4.6 / GPT-4o-mini / sonar-pro — strong quality at low cost. Internal calls (route detection, synthesis, scoring) automatically use the cheaper **utility** tier (Haiku 4.5 / GPT-4o-mini / sonar). Override per-call:
 
 ```bash
 trident parallel "..." --premium     # Opus 4.7 / GPT-4o / sonar-reasoning (~10× cost)
@@ -129,19 +126,8 @@ TRIDENT_PERPLEXITY_MAIN_MODEL=sonar-pro
 
 ```bash
 trident sessions                                # list recent runs
-trident sessions list --mode chain --project BHIS --limit 20
+trident sessions list --mode chain --limit 20
 trident sessions get <id>                       # reprint a past run
-```
-
-### Memory
-
-```bash
-trident memory list
-trident memory list --project BHIS
-trident memory set project_goal "Build a church analytics dashboard" --project BHIS
-trident memory get project_goal --project BHIS
-trident memory delete project_goal --project BHIS
-trident memory projects
 ```
 
 ### Routing
@@ -158,20 +144,10 @@ trident ui                                      # http://localhost:4242
 trident ui --port 5000
 ```
 
-The UI has three views:
+The UI has two views:
 
 - **Query** — type a prompt, choose parallel/chain/preset/AIs, results stream in via SSE
-- **Memory** — browse, edit, create, delete entries (scoped by project)
 - **Sessions** — list past runs, click to view full output
-
-### File watcher
-
-```bash
-trident watch                                   # continuous — Ctrl+C to stop
-trident watch --once                            # single pass and exit
-```
-
-The watcher reads new/changed files in `data/docs/`, sends each to Claude with a "extract 5–10 key facts" prompt, and writes the result to memory under the file's first subdirectory as the project namespace. Memory key format: `doc_facts:<rel_path>`.
 
 ### Scheduler
 
@@ -225,9 +201,7 @@ Use with `trident chain "..." --mode research`. Add your own modes — anything 
     "cron": "0 7 * * *",
     "prompt": "Give me a briefing on AI news, cybersecurity threats, and market movements from the last 24 hours",
     "preset": "research-analyze-summarize",
-    "output": "data/docs/briefings/daily.md",
-    "memory_key": "last_briefing",
-    "project": "global"
+    "output": "data/docs/briefings/daily.md"
   }
 ]
 ```
@@ -239,8 +213,6 @@ Per-schedule fields:
 - `prompt` — the chain's input
 - `preset` *or* `order` — choose AI sequence
 - `output` *(optional)* — file path (relative to repo root) for a markdown transcript
-- `memory_key` *(optional)* — key to write the final response to in memory
-- `project` *(optional)* — project namespace for the memory write
 - `system` *(optional)* — global system prompt override
 
 `trident schedule daemon` keeps a long-lived process running — pair with `pm2`, `systemd`, or `launchd` for production.
@@ -269,22 +241,20 @@ trident/
 │   ├── mcp-server/          # MCP server (Claude + ChatGPT connect here)
 │   │   └── src/
 │   │       ├── index.ts     # Server entry point
-│   │       ├── db/          # SQLite shared store
+│   │       ├── db/          # SQLite session store
 │   │       ├── lib/google.ts
-│   │       └── tools/       # memory, search, files, api, perplexity, google
+│   │       └── tools/       # search, files, api, perplexity, google
 │   ├── cli/                 # Trident CLI
 │   │   └── src/
 │   │       ├── index.ts     # CLI entry point
-│   │       ├── commands/    # parallel, chain, memory, sessions, route, google
-│   │       └── lib/         # db, context, output, synthesis, config
-│   ├── watcher/             # data/docs/ → memory indexer (chokidar)
+│   │       ├── commands/    # parallel, chain, sessions, route, config, google
+│   │       └── lib/         # db, output, synthesis, config, clients
 │   ├── scheduler/           # node-cron based scheduled chains
 │   ├── ui-server/           # Express + SSE API for the dashboard
 │   └── ui/                  # React + Vite dashboard
 ├── data/
-│   ├── docs/                # Drop project files here — all AIs can read
-│   ├── trident.db           # Auto-created shared SQLite store
-│   ├── watcher-state.json   # Watcher's per-file index state (gitignored)
+│   ├── docs/                # Drop files here — surfaced to MCP `read_file`/`list_files` tools
+│   ├── trident.db           # Auto-created session store
 │   ├── scheduler-state.json # Last-run state for each schedule (gitignored)
 │   └── google-token.json    # OAuth token (gitignored)
 ├── trident.config.json      # Routing modes
@@ -292,25 +262,6 @@ trident/
 ├── credentials.json         # Google OAuth client (gitignored — you provide)
 ├── .env                     # Your API keys (gitignored)
 └── .env.example
-```
-
----
-
-## Adding Project Context
-
-To make all AIs aware of a project:
-
-```bash
-# Option 1: Drop files in data/docs/<project>/
-cp my-project-notes.md data/docs/my-project/notes.md
-trident watch --once                            # auto-indexes facts into memory
-
-# Option 2: Write key facts to shared memory directly
-trident memory set architecture "React frontend, Node backend, PostgreSQL" --project my-project
-trident memory set goals "Build X by Y" --project my-project
-
-# Option 3: Inject into a query
-trident parallel "How should we proceed?" --project my-project
 ```
 
 ---
