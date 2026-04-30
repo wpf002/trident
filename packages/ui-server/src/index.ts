@@ -26,7 +26,7 @@ const REPO_ROOT = path.resolve(__dirname, "../../..");
 
 dotenv.config({ path: path.join(REPO_ROOT, ".env") });
 
-const PORT = parseInt(process.env.TRIDENT_UI_PORT ?? "4242", 10);
+const PORT = parseInt(process.env.PORT ?? process.env.TRIDENT_UI_PORT ?? "4242", 10);
 const STATIC_DIR = path.join(__dirname, "..", "static");
 
 const app = express();

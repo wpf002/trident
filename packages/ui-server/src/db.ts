@@ -4,7 +4,9 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, "../../../data");
+const DATA_DIR = process.env.TRIDENT_DATA_DIR
+  ? path.resolve(process.env.TRIDENT_DATA_DIR)
+  : path.resolve(__dirname, "../../../data");
 const DB_PATH = path.join(DATA_DIR, "trident.db");
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });

@@ -1,0 +1,15 @@
+[phases.install]
+cmds = [
+  "npm install --include=optional",
+  "npm install --no-save --workspace=packages/ui @rollup/rollup-linux-x64-gnu",
+]
+
+[phases.build]
+cmds = [
+  "npm run build --workspace=packages/core",
+  "npm run build --workspace=packages/ui-server",
+  "npm run build --workspace=packages/ui",
+]
+
+[start]
+cmd = "npm run start --workspace=packages/ui-server"
