@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { aiLabel, AIName } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
+import { formatDuration } from "../lib/format.js";
 
 interface StreamResponse {
   ai: AIName;
@@ -84,11 +85,11 @@ export function QueryView() {
   const start = async () => {
     setError(null);
     if (!prompt.trim()) {
-      setError("Prompt is required");
+      setError("Type something to ask first.");
       return;
     }
     if (mode === "parallel" && ais.length === 0) {
-      setError("Select at least one AI for parallel mode");
+      setError("Pick at least one AI to ask.");
       return;
     }
 
@@ -276,7 +277,7 @@ export function QueryView() {
       <header className="page-header">
         <h2 className="page-title">Chat</h2>
         <p className="page-subtitle">
-          Run a prompt across the AIs. Results stream in token-by-token as each completes.
+          Ask once, hear back from all three. Their answers come in as they think.
         </p>
         <div className="divider" />
       </header>
@@ -289,7 +290,7 @@ export function QueryView() {
               rows={4}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="What would you like to ask?"
+              placeholder="What's on your mind?"
             />
           </div>
           <div>
@@ -298,7 +299,7 @@ export function QueryView() {
               rows={2}
               value={system}
               onChange={(e) => setSystem(e.target.value)}
-              placeholder="Optional persona or instructions applied to every model call"
+              placeholder="Want them to take a specific tone, role, or angle? Drop it here."
             />
           </div>
           <div className="row">
@@ -325,7 +326,7 @@ export function QueryView() {
           </div>
           <div>
             <div className="label">
-              AIs {mode === "chain" && preset ? "(overridden by preset)" : ""}
+              AIs {mode === "chain" && preset ? "(set by the preset)" : ""}
             </div>
             <div className="row">
               {ALL_AIS.map((ai) => {
@@ -358,10 +359,10 @@ export function QueryView() {
             <button className="primary" onClick={start} disabled={run?.status === "running"}>
               {run?.status === "running" ? (
                 <span className="row" style={{ gap: 8 }}>
-                  <span className="spinner" /> Running…
+                  <span className="spinner" /> Working on it…
                 </span>
               ) : (
-                "Run"
+                "Ask"
               )}
             </button>
             {error && <span className="error">{error}</span>}
@@ -379,13 +380,13 @@ export function QueryView() {
               {run.status === "running" && <span className="spinner" />}
             </div>
             {run.durationMs !== undefined && (
-              <span className="muted tiny">{run.durationMs}ms</span>
+              <span className="muted tiny">{formatDuration(run.durationMs)}</span>
             )}
           </div>
           <div className="divider" />
 
           {run.responses.length === 0 && run.status === "running" && (
-            <div className="muted">Waiting for first response…</div>
+            <div className="muted">Hang tight — first reply on its way.</div>
           )}
 
           {run.responses.map((r, i) => (
@@ -399,7 +400,7 @@ export function QueryView() {
                     </span>
                   )}
                 </div>
-                <span className="muted tiny">{r.duration_ms}ms</span>
+                <span className="muted tiny">{formatDuration(r.duration_ms)}</span>
               </div>
               {r.error ? (
                 <div className="error">{r.error}</div>
@@ -424,10 +425,10 @@ export function QueryView() {
                     )}
                     <span className="spinner" />
                   </div>
-                  <span className="muted tiny">streaming…</span>
+                  <span className="muted tiny">writing…</span>
                 </div>
                 {partial.length === 0 ? (
-                  <div className="muted">thinking…</div>
+                  <div className="muted">thinking it over…</div>
                 ) : (
                   <div>
                     <MarkdownView text={partial} />
@@ -439,23 +440,26 @@ export function QueryView() {
           })}
 
           {(run.diffActive || run.diffContent || run.diffError || run.diffPartial) && (
-            <div className="card bordered-gold">
-              <div className="card-header">
-                <div className="row">
-                  <span className="tag claude">Verdict</span>
-                  {run.diffActive && <span className="spinner" />}
+            <>
+              <div className="divider" style={{ margin: "20px 0" }} />
+              <div className="card bordered-gold">
+                <div className="card-header">
+                  <div className="row">
+                    <span className="tag claude">Verdict</span>
+                    {run.diffActive && <span className="spinner" />}
+                  </div>
+                  {run.diffActive && <span className="muted tiny">writing…</span>}
                 </div>
-                <span className="muted tiny">{run.diffActive ? "streaming…" : "done"}</span>
+                {run.diffError ? (
+                  <div className="error">{run.diffError}</div>
+                ) : (
+                  <div>
+                    <MarkdownView text={run.diffContent ?? run.diffPartial ?? ""} />
+                    {run.diffActive && <span className="cursor">▍</span>}
+                  </div>
+                )}
               </div>
-              {run.diffError ? (
-                <div className="error">{run.diffError}</div>
-              ) : (
-                <div>
-                  <MarkdownView text={run.diffContent ?? run.diffPartial ?? ""} />
-                  {run.diffActive && <span className="cursor">▍</span>}
-                </div>
-              )}
-            </div>
+            </>
           )}
 
           {(run.scoreActive || run.scoreReport || run.scoreError) && (
@@ -465,7 +469,7 @@ export function QueryView() {
                   <span className="tag perplexity">Confidence Score</span>
                   {run.scoreActive && <span className="spinner" />}
                 </div>
-                <span className="muted tiny">{run.scoreActive ? "scoring…" : "done"}</span>
+                {run.scoreActive && <span className="muted tiny">comparing…</span>}
               </div>
               {run.scoreError ? (
                 <div className="error">{run.scoreError}</div>
@@ -514,29 +518,11 @@ function ConfidenceReportView({ report }: { report: ConfidenceReport }) {
         );
       })}
       <div className="muted tiny">
-        Overall agreement:{" "}
-        <span style={{ color: agreementColor, fontWeight: 600 }}>{report.agreement}</span>
+        Overall Agreement:{" "}
+        <span style={{ color: agreementColor, fontWeight: 600, textTransform: "uppercase" }}>
+          {report.agreement}
+        </span>
       </div>
-      {report.consensus.length > 0 && (
-        <div>
-          <div className="label">Consensus</div>
-          <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
-            {report.consensus.map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {report.disagreement.length > 0 && (
-        <div>
-          <div className="label">Disagreement</div>
-          <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
-            {report.disagreement.map((d, i) => (
-              <li key={i}>{d}</li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

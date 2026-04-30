@@ -43,7 +43,7 @@ export function App() {
           <ImageView />
         </div>
         <div className={"view" + (tab !== "sessions" ? " view-hidden" : "")}>
-          <SessionsView />
+          <SessionsView active={tab === "sessions"} />
         </div>
       </main>
     </div>

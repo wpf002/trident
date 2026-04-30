@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatDuration } from "../lib/format.js";
 
 type Size = "1024x1024" | "1024x1792" | "1792x1024";
 type Quality = "standard" | "hd";
@@ -114,7 +115,7 @@ export function ImageView() {
                 {result.size} · {result.quality}
               </span>
             </div>
-            <span className="muted tiny">{result.duration_ms}ms</span>
+            <span className="muted tiny">{formatDuration(result.duration_ms)}</span>
           </div>
           <a href={result.url} target="_blank" rel="noreferrer noopener" className="image-result">
             <img src={result.url} alt={prompt} />

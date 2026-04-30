@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { SessionRun, aiLabel } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
+import { formatDuration } from "../lib/format.js";
 
 function modeLabel(mode: string): string {
   return mode.charAt(0).toUpperCase() + mode.slice(1);
@@ -48,7 +49,7 @@ async function fetchSession(id: string): Promise<SessionRun> {
   return data.session;
 }
 
-export function SessionsView() {
+export function SessionsView({ active = true }: { active?: boolean }) {
   const [sessions, setSessions] = useState<SessionRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,9 +68,11 @@ export function SessionsView() {
     }
   };
 
+  // Refresh whenever the tab becomes active so newly-completed runs appear
+  // without requiring a manual Refresh click.
   useEffect(() => {
-    load();
-  }, []);
+    if (active) load();
+  }, [active]);
 
   const handleSelect = async (id: string) => {
     try {
@@ -165,10 +168,6 @@ function SessionListRow({
   active: boolean;
   onClick: () => void;
 }) {
-  const tokIn = session.responses.reduce((acc, r) => acc + (r.usage?.input_tokens ?? 0), 0);
-  const tokOut = session.responses.reduce((acc, r) => acc + (r.usage?.output_tokens ?? 0), 0);
-  const tokSummary = tokIn + tokOut > 0 ? `${tokIn}↑ / ${tokOut}↓` : null;
-
   return (
     <button
       onClick={onClick}
@@ -176,7 +175,7 @@ function SessionListRow({
     >
       <div className="history-row-time">
         <div className="history-row-time-main">{formatTimeOnly(session.created_at)}</div>
-        <div className="history-row-time-sub">{session.duration_ms}ms</div>
+        <div className="history-row-time-sub">{formatDuration(session.duration_ms)}</div>
       </div>
       <div className="history-row-marker" aria-hidden="true">
         <span className="history-row-dot" />
@@ -190,10 +189,6 @@ function SessionListRow({
         <div className="history-row-prompt">
           {session.prompt.slice(0, 110)}
           {session.prompt.length > 110 ? "…" : ""}
-        </div>
-        <div className="muted tiny history-row-meta">
-          <span style={{ fontFamily: "JetBrains Mono, monospace" }}>{session.id}</span>
-          {tokSummary && <span>· {tokSummary}</span>}
         </div>
       </div>
     </button>
@@ -215,14 +210,8 @@ function SessionDetail({ session }: { session: SessionRun }) {
           <span className={"tag " + session.mode}>{modeLabel(session.mode)}</span>
           {session.preset && <span className="tag">{session.preset}</span>}
           {session.project && <span className="tag">{session.project}</span>}
-          <span
-            className="muted tiny"
-            style={{ fontFamily: "JetBrains Mono, monospace" }}
-          >
-            {session.id}
-          </span>
         </div>
-        <span className="muted tiny">{session.duration_ms}ms total</span>
+        <span className="muted tiny">{formatDuration(session.duration_ms)} total</span>
       </div>
       <div className="pane-body padded">
         <div className="column">
@@ -238,57 +227,29 @@ function SessionDetail({ session }: { session: SessionRun }) {
 
           <section className="column">
             <div className="label">Responses ({session.responses.length})</div>
-            {session.responses.map((r, i) => {
-              const usage = r.usage
-                ? `${r.usage.input_tokens}↑/${r.usage.output_tokens}↓ tok`
-                : null;
-              return (
-                <details key={i} className="ai-block">
-                  <summary>
-                    <div className="row" style={{ gap: 8 }}>
-                      <span className={"tag " + r.ai}>{aiLabel(r.ai)}</span>
-                      {session.mode === "chain" && (
-                        <span className="muted tiny">
-                          step {i + 1}/{session.responses.length}
-                        </span>
-                      )}
-                      {r.error && <span className="muted tiny" style={{ color: "var(--red)" }}>error</span>}
-                    </div>
-                    <div className="muted tiny">
-                      {r.duration_ms}ms{usage ? ` · ${usage}` : ""}
-                      {r.model ? ` · ${r.model}` : ""}
-                    </div>
-                  </summary>
-                  <div className="ai-block-body">
-                    {r.error ? (
-                      <div className="error">{r.error}</div>
-                    ) : (
-                      <MarkdownView text={r.content} />
+            {session.responses.map((r, i) => (
+              <details key={i} className="ai-block">
+                <summary>
+                  <div className="row" style={{ gap: 8 }}>
+                    <span className={"tag " + r.ai}>{aiLabel(r.ai)}</span>
+                    {session.mode === "chain" && (
+                      <span className="muted tiny">
+                        step {i + 1}/{session.responses.length}
+                      </span>
                     )}
+                    {r.error && <span className="muted tiny" style={{ color: "var(--red)" }}>error</span>}
                   </div>
-                </details>
-              );
-            })}
+                </summary>
+                <div className="ai-block-body">
+                  {r.error ? (
+                    <div className="error">{r.error}</div>
+                  ) : (
+                    <MarkdownView text={r.content} />
+                  )}
+                </div>
+              </details>
+            ))}
           </section>
-
-          {session.metadata && Object.keys(session.metadata).length > 0 && (
-            <>
-              <div className="divider" />
-              <section>
-                <details className="ai-block">
-                  <summary>
-                    <span className="label" style={{ margin: 0 }}>
-                      Metadata
-                    </span>
-                    <span className="muted tiny">JSON</span>
-                  </summary>
-                  <div className="ai-block-body">
-                    <pre>{JSON.stringify(session.metadata, null, 2)}</pre>
-                  </div>
-                </details>
-              </section>
-            </>
-          )}
         </div>
       </div>
     </>
