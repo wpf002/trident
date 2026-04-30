@@ -932,6 +932,35 @@ details.ai-block .ai-block-body {
   background: var(--bg);
 }
 
+/* ─── Image generation result ─────────────────────────────────────────────── */
+
+.image-result {
+  display: block;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  max-width: 100%;
+  line-height: 0;
+}
+.image-result img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.image-result:hover {
+  border-color: var(--gold);
+}
+
+.image-revised {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--radius-sm);
+}
+
 /* ─── Confidence bar ──────────────────────────────────────────────────────── */
 
 .confidence-bar {

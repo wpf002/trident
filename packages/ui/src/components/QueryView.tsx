@@ -276,7 +276,7 @@ export function QueryView() {
   return (
     <div>
       <header className="page-header">
-        <h2 className="page-title">Query</h2>
+        <h2 className="page-title">Chat</h2>
         <p className="page-subtitle">
           Run a prompt across the AIs. Results stream in token-by-token as each completes.
         </p>

@@ -207,3 +207,61 @@ export const AI_MAP: Record<
   gpt: callGPT,
   perplexity: callPerplexity,
 };
+
+// ─── Image generation (OpenAI Images API) ────────────────────────────────────
+
+export type ImageSize = "1024x1024" | "1024x1792" | "1792x1024";
+export type ImageQuality = "standard" | "hd";
+
+export interface ImageResult {
+  url: string;
+  revised_prompt?: string;
+  duration_ms: number;
+  model: string;
+  size: ImageSize;
+  quality: ImageQuality;
+  error?: string;
+}
+
+export async function generateImage(
+  prompt: string,
+  options: { size?: ImageSize; quality?: ImageQuality } = {}
+): Promise<ImageResult> {
+  const start = Date.now();
+  const size: ImageSize = options.size ?? "1024x1024";
+  const quality: ImageQuality = options.quality ?? "standard";
+  const model = "dall-e-3";
+
+  try {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+    const client = new OpenAI({ apiKey });
+    const response = await client.images.generate({
+      model,
+      prompt,
+      n: 1,
+      size,
+      quality,
+      response_format: "url",
+    });
+    const first = response.data?.[0];
+    if (!first?.url) throw new Error("OpenAI returned no image URL");
+    return {
+      url: first.url,
+      revised_prompt: first.revised_prompt,
+      duration_ms: Date.now() - start,
+      model,
+      size,
+      quality,
+    };
+  } catch (err) {
+    return {
+      url: "",
+      duration_ms: Date.now() - start,
+      model,
+      size,
+      quality,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}

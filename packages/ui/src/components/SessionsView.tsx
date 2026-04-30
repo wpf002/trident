@@ -83,9 +83,9 @@ export function SessionsView() {
   return (
     <div>
       <header className="page-header">
-        <h2 className="page-title">Sessions</h2>
+        <h2 className="page-title">History</h2>
         <p className="page-subtitle">
-          Past parallel and chain runs. Click any session to replay its full output.
+          Past parallel and chain runs. Click any entry to replay its full output.
         </p>
         <div className="divider" />
       </header>
