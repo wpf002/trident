@@ -6,7 +6,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { nanoid } from "nanoid";
-import { listSessions, getSession, insertSession } from "./db.js";
+import { listSessions, getSession, insertSession, clearSessions } from "./db.js";
 import {
   AI_MAP,
   AIMessage,
@@ -64,6 +64,11 @@ app.post("/api/image/generate", async (req: Request, res: Response) => {
 
 app.get("/api/sessions", (_req: Request, res: Response) => {
   res.json({ sessions: listSessions(200) });
+});
+
+app.delete("/api/sessions", (_req: Request, res: Response) => {
+  const removed = clearSessions();
+  res.json({ removed });
 });
 
 app.get("/api/sessions/:id", (req: Request, res: Response) => {

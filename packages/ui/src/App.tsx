@@ -33,7 +33,6 @@ export function App() {
         >
           History
         </button>
-        <div className="sidebar-footer">v1.0 · localhost:4242</div>
       </aside>
       <main className="main">
         <div className={"view" + (tab !== "query" ? " view-hidden" : "")}>

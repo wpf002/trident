@@ -109,6 +109,12 @@ export function getSession(id: string): SessionRun | null {
   return row ? parseRow(row) : null;
 }
 
+export function clearSessions(): number {
+  const db = getDb();
+  const info = db.prepare("DELETE FROM session_runs").run();
+  return info.changes;
+}
+
 export function insertSession(run: Omit<SessionRun, "created_at"> & { created_at?: string }) {
   const db = getDb();
   db.prepare(`

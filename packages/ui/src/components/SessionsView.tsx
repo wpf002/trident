@@ -83,6 +83,20 @@ export function SessionsView({ active = true }: { active?: boolean }) {
     }
   };
 
+  const handleClear = async () => {
+    if (sessions.length === 0) return;
+    const ok = window.confirm(`Clear all ${sessions.length} sessions? This cannot be undone.`);
+    if (!ok) return;
+    try {
+      const res = await fetch("/api/sessions", { method: "DELETE" });
+      if (!res.ok) throw new Error(`clear failed: ${res.status}`);
+      setSessions([]);
+      setSelected(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   return (
     <div>
       <header className="page-header">
@@ -109,9 +123,18 @@ export function SessionsView({ active = true }: { active?: boolean }) {
               </span>
               <span className="muted tiny">{sessions.length} sessions</span>
             </div>
-            <button className="secondary" onClick={load} disabled={loading}>
-              {loading ? "Loading…" : "Refresh"}
-            </button>
+            <div className="row" style={{ gap: 6 }}>
+              <button className="secondary" onClick={load} disabled={loading}>
+                {loading ? "Loading…" : "Refresh"}
+              </button>
+              <button
+                className="secondary"
+                onClick={handleClear}
+                disabled={loading || sessions.length === 0}
+              >
+                Clear History
+              </button>
+            </div>
           </div>
           <div className="pane-body history-list">
             {sessions.length === 0 ? (
