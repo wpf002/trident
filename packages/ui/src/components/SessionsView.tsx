@@ -113,9 +113,9 @@ export function SessionsView({ active = true }: { active?: boolean }) {
         </div>
       )}
 
-      <div className="split-panes">
+      <div className={"split-panes" + (selected ? " mobile-detail-open" : "")}>
         {/* Left: history list */}
-        <div className="pane">
+        <div className="pane list-pane">
           <div className="pane-header">
             <div className="row">
               <span className="label" style={{ margin: 0 }}>
@@ -163,9 +163,9 @@ export function SessionsView({ active = true }: { active?: boolean }) {
         </div>
 
         {/* Right: detail */}
-        <div className="pane">
+        <div className="pane detail-pane">
           {selected ? (
-            <SessionDetail session={selected} />
+            <SessionDetail session={selected} onBack={() => setSelected(null)} />
           ) : (
             <>
               <div className="pane-header">
@@ -225,11 +225,14 @@ function formatTimeOnly(iso: string): string {
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-function SessionDetail({ session }: { session: SessionRun }) {
+function SessionDetail({ session, onBack }: { session: SessionRun; onBack: () => void }) {
   return (
     <>
       <div className="pane-header">
         <div className="row">
+          <button className="secondary mobile-back" onClick={onBack} aria-label="Back to history list">
+            ← Back
+          </button>
           <span className={"tag " + session.mode}>{modeLabel(session.mode)}</span>
           {session.preset && <span className="tag">{session.preset}</span>}
           {session.project && <span className="tag">{session.project}</span>}

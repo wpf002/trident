@@ -328,7 +328,7 @@ export function QueryView() {
             <div className="label">
               AIs {mode === "chain" && preset ? "(set by the preset)" : ""}
             </div>
-            <div className="row">
+            <div className="row ai-toggles">
               {ALL_AIS.map((ai) => {
                 const active = ais.includes(ai);
                 return (
