@@ -364,20 +364,21 @@ export function QueryView() {
             </div>
           </div>
           <div className="row">
-            <button className="primary" onClick={start} disabled={run?.status === "running"}>
+            <button
+              className="primary"
+              onClick={run?.status === "done" ? newChat : start}
+              disabled={run?.status === "running"}
+            >
               {run?.status === "running" ? (
                 <span className="row" style={{ gap: 8 }}>
                   <span className="spinner" /> Working on it…
                 </span>
+              ) : run?.status === "done" ? (
+                "New Chat"
               ) : (
                 "Ask"
               )}
             </button>
-            {run && run.status !== "running" && (
-              <button className="secondary" onClick={newChat}>
-                New chat
-              </button>
-            )}
             {error && <span className="error">{error}</span>}
           </div>
         </div>
