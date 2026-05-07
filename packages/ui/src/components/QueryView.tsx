@@ -82,6 +82,14 @@ export function QueryView() {
     setAis((curr) => (curr.includes(ai) ? curr.filter((a) => a !== ai) : [...curr, ai]));
   };
 
+  const newChat = () => {
+    setPrompt("");
+    setSystem("");
+    setRun(null);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const start = async () => {
     setError(null);
     if (!prompt.trim()) {
@@ -365,6 +373,11 @@ export function QueryView() {
                 "Ask"
               )}
             </button>
+            {run && run.status !== "running" && (
+              <button className="secondary" onClick={newChat}>
+                New chat
+              </button>
+            )}
             {error && <span className="error">{error}</span>}
           </div>
         </div>
