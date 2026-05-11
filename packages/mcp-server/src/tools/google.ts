@@ -1,9 +1,17 @@
 import { getAuthorizedClient, GoogleAuthError } from "../lib/google.js";
 
-// googleapis is enormous (~30s+ to import). Load it lazily so it doesn't
-// block MCP server startup past the client's initialize timeout.
-async function loadGoogle() {
-  const mod = await import("googleapis");
+// googleapis has 49MB of .d.ts (~830 files) — a static `import("googleapis")`
+// makes tsc hang for minutes. We also need the runtime import to be lazy so
+// MCP server startup doesn't block past the client's initialize timeout. The
+// `new Function` indirection hides the specifier from TS's type resolver
+// while preserving the runtime dynamic import.
+const dynamicImport = new Function(
+  "specifier",
+  "return import(specifier)"
+) as (specifier: string) => Promise<any>;
+
+async function loadGoogle(): Promise<any> {
+  const mod = await dynamicImport("googleapis");
   return mod.google;
 }
 
@@ -100,7 +108,7 @@ async function gmailSearch(args: Record<string, unknown>): Promise<string> {
 
   const threads = list.data.threads ?? [];
   const detailed = await Promise.all(
-    threads.map(async (t) => {
+    threads.map(async (t: any) => {
       if (!t.id) return null;
       const thread = await gmail.users.threads.get({
         userId: "me",
@@ -111,7 +119,7 @@ async function gmailSearch(args: Record<string, unknown>): Promise<string> {
       const firstMessage = thread.data.messages?.[0];
       const headers = firstMessage?.payload?.headers ?? [];
       const find = (name: string) =>
-        headers.find((h) => (h.name ?? "").toLowerCase() === name.toLowerCase())?.value ?? null;
+        headers.find((h: any) => (h.name ?? "").toLowerCase() === name.toLowerCase())?.value ?? null;
       return {
         thread_id: t.id,
         subject: find("Subject"),
@@ -152,13 +160,13 @@ async function gdriveSearch(args: Record<string, unknown>): Promise<string> {
     orderBy: "modifiedTime desc",
   });
 
-  const files = (result.data.files ?? []).map((f) => ({
+  const files = (result.data.files ?? []).map((f: any) => ({
     id: f.id,
     name: f.name,
     mimeType: f.mimeType,
     modifiedTime: f.modifiedTime,
     webViewLink: f.webViewLink,
-    owners: f.owners?.map((o) => ({ email: o.emailAddress, name: o.displayName })) ?? [],
+    owners: f.owners?.map((o: any) => ({ email: o.emailAddress, name: o.displayName })) ?? [],
     size: f.size,
   }));
 
@@ -187,14 +195,14 @@ async function gcalUpcoming(args: Record<string, unknown>): Promise<string> {
     orderBy: "startTime",
   });
 
-  const events = (result.data.items ?? []).map((e) => ({
+  const events = (result.data.items ?? []).map((e: any) => ({
     id: e.id,
     summary: e.summary,
     description: e.description,
     location: e.location,
     start: e.start?.dateTime ?? e.start?.date ?? null,
     end: e.end?.dateTime ?? e.end?.date ?? null,
-    attendees: e.attendees?.map((a) => ({ email: a.email, name: a.displayName, response: a.responseStatus })) ?? [],
+    attendees: e.attendees?.map((a: any) => ({ email: a.email, name: a.displayName, response: a.responseStatus })) ?? [],
     htmlLink: e.htmlLink,
     organizer: e.organizer?.email ?? null,
   }));
