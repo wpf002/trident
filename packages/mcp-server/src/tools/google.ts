@@ -1,5 +1,11 @@
-import { google } from "googleapis";
 import { getAuthorizedClient, GoogleAuthError } from "../lib/google.js";
+
+// googleapis is enormous (~30s+ to import). Load it lazily so it doesn't
+// block MCP server startup past the client's initialize timeout.
+async function loadGoogle() {
+  const mod = await import("googleapis");
+  return mod.google;
+}
 
 export const googleTools = [
   {
@@ -83,6 +89,7 @@ async function gmailSearch(args: Record<string, unknown>): Promise<string> {
   const maxResults = Math.min((args.max_results as number | undefined) ?? 10, 50);
 
   const auth = await getAuthorizedClient();
+  const google = await loadGoogle();
   const gmail = google.gmail({ version: "v1", auth });
 
   const list = await gmail.users.threads.list({
@@ -131,6 +138,7 @@ async function gdriveSearch(args: Record<string, unknown>): Promise<string> {
   const maxResults = Math.min((args.max_results as number | undefined) ?? 10, 50);
 
   const auth = await getAuthorizedClient();
+  const google = await loadGoogle();
   const drive = google.drive({ version: "v3", auth });
 
   // Drive API requires escaping single quotes in the q parameter.
@@ -164,6 +172,7 @@ async function gcalUpcoming(args: Record<string, unknown>): Promise<string> {
   const calendarId = (args.calendar_id as string | undefined) ?? "primary";
 
   const auth = await getAuthorizedClient();
+  const google = await loadGoogle();
   const calendar = google.calendar({ version: "v3", auth });
 
   const now = new Date();
