@@ -16,9 +16,6 @@ import {
   VALID_AIS,
   ModelTier,
   callClaude,
-  generateImage,
-  ImageQuality,
-  ImageSize,
 } from "@trident/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,33 +29,6 @@ const STATIC_DIR = path.join(__dirname, "..", "static");
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "5mb" }));
-
-// ─── Image generation ────────────────────────────────────────────────────────
-
-const VALID_IMAGE_SIZES: ReadonlySet<string> = new Set(["1024x1024", "1024x1792", "1792x1024"]);
-const VALID_IMAGE_QUALITIES: ReadonlySet<string> = new Set(["standard", "hd"]);
-
-app.post("/api/image/generate", async (req: Request, res: Response) => {
-  const body = (req.body ?? {}) as Record<string, unknown>;
-  const prompt = body.prompt;
-  if (typeof prompt !== "string" || !prompt.trim()) {
-    res.status(400).json({ error: "prompt is required" });
-    return;
-  }
-  if (body.size !== undefined && (typeof body.size !== "string" || !VALID_IMAGE_SIZES.has(body.size))) {
-    res.status(400).json({ error: "size must be 1024x1024, 1024x1792, or 1792x1024" });
-    return;
-  }
-  if (body.quality !== undefined && (typeof body.quality !== "string" || !VALID_IMAGE_QUALITIES.has(body.quality))) {
-    res.status(400).json({ error: "quality must be 'standard' or 'hd'" });
-    return;
-  }
-  const result = await generateImage(prompt, {
-    size: body.size as ImageSize | undefined,
-    quality: body.quality as ImageQuality | undefined,
-  });
-  res.json(result);
-});
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
