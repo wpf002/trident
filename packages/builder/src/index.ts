@@ -34,7 +34,15 @@ export {
 
 export { createAndRunBuild, runBuildLoop } from "./loop.js";
 
-export { attachWorkspace, createWorkspace, destroyWorkspace } from "./state.js";
+export {
+  attachWorkspace,
+  createWorkspace,
+  destroyWorkspace,
+  prepareSourceRepo,
+  defaultSourceRepo,
+  defaultBaseBranch,
+  dataDir,
+} from "./state.js";
 
 // Convenience helpers consumed by the CLI and ui-server.
 import {

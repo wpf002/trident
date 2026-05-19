@@ -187,8 +187,15 @@ export type StepEvaluation = z.infer<typeof StepEvaluationSchema>;
 // ─── Public API request shapes ────────────────────────────────────────────
 
 export interface CreateBuildOptions {
-  specPath: string;
-  sourceRepo: string;
+  // Either an absolute/relative path to a spec markdown file (specPath)
+  // or the spec content inline (specText). One of the two is required.
+  specPath?: string;
+  specText?: string;
+  // Local filesystem path OR a remote git URL (https://github.com/...,
+  // git@host:owner/repo). Remote URLs are cloned into DATA_DIR/builder-repos
+  // and reused across builds. If omitted, falls back to
+  // TRIDENT_BUILDER_DEFAULT_REPO env var.
+  sourceRepo?: string;
   baseBranch?: string;
   config?: Partial<BuilderConfig>;
   metadata?: Record<string, unknown>;

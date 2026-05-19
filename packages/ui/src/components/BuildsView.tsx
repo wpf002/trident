@@ -78,6 +78,13 @@ export function BuildsView({ active }: { active: boolean }) {
 
 // ─── List ─────────────────────────────────────────────────────────────────
 
+interface BuilderConfig {
+  default_source_repo: string | null;
+  default_base_branch: string;
+  anthropic_configured: boolean;
+  has_github_token: boolean;
+}
+
 function BuildsList({
   onOpen,
   active,
@@ -88,8 +95,9 @@ function BuildsList({
   const [builds, setBuilds] = useState<BuildSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [specPath, setSpecPath] = useState("");
+  const [specText, setSpecText] = useState("");
   const [sourceRepo, setSourceRepo] = useState("");
+  const [config, setConfig] = useState<BuilderConfig | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -102,6 +110,31 @@ function BuildsList({
     }
   }, []);
 
+  // Fetch the builder server config once — tells us whether a default
+  // source repo is pinned (Railway case) and whether the API key is set.
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/api/builds/config");
+        if (!r.ok) return;
+        const data = (await r.json()) as BuilderConfig;
+        if (cancelled) return;
+        setConfig(data);
+        if (data.default_source_repo && !sourceRepo) {
+          setSourceRepo(data.default_source_repo);
+        }
+      } catch {
+        // ignore — UI still works, user enters repo manually
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
   useEffect(() => {
     if (!active) return;
     void refresh();
@@ -110,17 +143,18 @@ function BuildsList({
   }, [active, refresh]);
 
   const handleCreate = async () => {
-    if (!specPath.trim() || !sourceRepo.trim()) return;
+    if (!specText.trim() || !sourceRepo.trim()) return;
     setCreating(true);
     try {
       const r = await fetch("/api/builds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spec_path: specPath, source_repo: sourceRepo }),
+        body: JSON.stringify({ spec_text: specText, source_repo: sourceRepo }),
       });
       const data = (await r.json()) as { id?: string; error?: string };
       if (data.id) {
         onOpen(data.id);
+        setSpecText("");
       } else {
         alert(data.error ?? "failed to start build");
       }
@@ -138,23 +172,35 @@ function BuildsList({
         </button>
       </header>
 
-      <section className="builds-new">
-        <input
-          className="builds-input"
-          placeholder="Spec path (absolute or relative to repo root)"
-          value={specPath}
-          onChange={(e) => setSpecPath(e.target.value)}
+      {config && !config.anthropic_configured && (
+        <div className="builds-banner">
+          <strong>ANTHROPIC_API_KEY is not set on this server.</strong> Builds
+          will fail to start until it's configured.
+        </div>
+      )}
+
+      <section className="builds-new builds-new-stacked">
+        <textarea
+          className="builds-input builds-spec-area"
+          placeholder="Spec — describe what you want built (markdown OK)"
+          rows={6}
+          value={specText}
+          onChange={(e) => setSpecText(e.target.value)}
         />
         <input
           className="builds-input"
-          placeholder="Source repo path"
+          placeholder={
+            config?.default_source_repo
+              ? `Source repo (default: ${config.default_source_repo})`
+              : "Source repo (local path or git URL)"
+          }
           value={sourceRepo}
           onChange={(e) => setSourceRepo(e.target.value)}
         />
         <button
           className="btn btn-primary"
           onClick={() => void handleCreate()}
-          disabled={creating || !specPath.trim() || !sourceRepo.trim()}
+          disabled={creating || !specText.trim() || !sourceRepo.trim()}
         >
           {creating ? "Starting…" : "Start Build"}
         </button>

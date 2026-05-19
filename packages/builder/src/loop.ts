@@ -35,7 +35,17 @@ import { generatePlan, ingestSpec, reviseSubPlan } from "./planner.js";
 import { evaluateStep, type EvaluatorSignals } from "./evaluator.js";
 import { runCoder } from "./coder.js";
 import { checkCeilings, detectLoop } from "./guardrails.js";
-import { createWorkspace, destroyWorkspace } from "./state.js";
+import {
+  buildsRoot,
+  createWorkspace,
+  dataDir,
+  defaultBaseBranch,
+  defaultSourceRepo,
+  destroyWorkspace,
+  prepareSourceRepo,
+} from "./state.js";
+import fs from "fs";
+import fsp from "fs/promises";
 
 export async function runBuildLoop(opts: {
   buildId: string;
@@ -248,8 +258,31 @@ export async function runBuildLoop(opts: {
 export async function createAndRunBuild(opts: CreateBuildOptions): Promise<string> {
   const buildId = nanoid(12);
   const config: BuilderConfig = { ...DEFAULT_CONFIG, ...(opts.config ?? {}) };
-  const baseBranch = opts.baseBranch ?? "main";
-  const sourceRepo = path.resolve(opts.sourceRepo);
+  const baseBranch = opts.baseBranch ?? defaultBaseBranch();
+
+  // Resolve source repo: explicit arg → env default → error.
+  const repoSpec = opts.sourceRepo ?? defaultSourceRepo();
+  if (!repoSpec) {
+    throw new Error(
+      "no source repo: pass sourceRepo or set TRIDENT_BUILDER_DEFAULT_REPO"
+    );
+  }
+  // Clones if it's a URL; resolves locally otherwise. Idempotent across calls.
+  const sourceRepo = await prepareSourceRepo(repoSpec);
+
+  // Resolve spec: explicit path, OR write inline text to a per-build spec file
+  // under data/builds/<id>/spec.md so it survives resume/replay.
+  let specPath: string;
+  if (opts.specPath) {
+    specPath = path.resolve(opts.specPath);
+  } else if (opts.specText) {
+    const buildDir = path.join(buildsRoot(), buildId);
+    if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir, { recursive: true });
+    specPath = path.join(buildDir, "spec.md");
+    await fsp.writeFile(specPath, opts.specText, "utf8");
+  } else {
+    throw new Error("no spec: pass specPath or specText");
+  }
 
   const sandbox = await createWorkspace({
     buildId,
@@ -259,7 +292,7 @@ export async function createAndRunBuild(opts: CreateBuildOptions): Promise<strin
 
   insertBuild({
     id: buildId,
-    spec_path: path.resolve(opts.specPath),
+    spec_path: specPath,
     source_repo: sourceRepo,
     base_branch: baseBranch,
     builder_branch: sandbox.branch,
@@ -275,7 +308,7 @@ export async function createAndRunBuild(opts: CreateBuildOptions): Promise<strin
     buildId,
     sandbox,
     config,
-    specPath: path.resolve(opts.specPath),
+    specPath,
   })
     .catch((err) => {
       emit(buildId, "build_terminated", { reason: "error", error: (err as Error).message });
@@ -287,6 +320,9 @@ export async function createAndRunBuild(opts: CreateBuildOptions): Promise<strin
 
   return buildId;
 }
+
+// Expose data dir for callers (ui-server, cli) that need to know where things live.
+export { dataDir };
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 

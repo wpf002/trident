@@ -4,6 +4,8 @@ import { Router, type Request, type Response } from "express";
 import {
   abortBuild,
   createAndRunBuild,
+  defaultBaseBranch,
+  defaultSourceRepo,
   getBuild,
   globalBus,
   listBuilds,
@@ -16,6 +18,21 @@ import {
 } from "@trident/builder";
 
 export const buildsRouter = Router();
+
+// ─── config ──────────────────────────────────────────────────────────────
+
+// What the UI needs to pre-fill the New Build form and know whether the
+// builder is usable in this environment.
+buildsRouter.get("/config", (_req: Request, res: Response) => {
+  res.json({
+    default_source_repo: defaultSourceRepo(),
+    default_base_branch: defaultBaseBranch(),
+    anthropic_configured: Boolean(process.env.ANTHROPIC_API_KEY),
+    has_github_token: Boolean(
+      process.env.TRIDENT_GITHUB_TOKEN || process.env.GITHUB_TOKEN
+    ),
+  });
+});
 
 // ─── list ────────────────────────────────────────────────────────────────
 
@@ -31,18 +48,28 @@ buildsRouter.get("/", (_req: Request, res: Response) => {
 
 buildsRouter.post("/", async (req: Request, res: Response) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
-  if (typeof body.spec_path !== "string" || !body.spec_path.trim()) {
-    res.status(400).json({ error: "spec_path required" });
+  const specPath = typeof body.spec_path === "string" ? body.spec_path.trim() : "";
+  const specText = typeof body.spec_text === "string" ? body.spec_text : "";
+  if (!specPath && !specText.trim()) {
+    res.status(400).json({ error: "spec_path or spec_text required" });
     return;
   }
-  if (typeof body.source_repo !== "string" || !body.source_repo.trim()) {
-    res.status(400).json({ error: "source_repo required" });
+  const sourceRepo =
+    (typeof body.source_repo === "string" ? body.source_repo.trim() : "") ||
+    defaultSourceRepo() ||
+    "";
+  if (!sourceRepo) {
+    res.status(400).json({
+      error:
+        "source_repo required (or set TRIDENT_BUILDER_DEFAULT_REPO on the server)",
+    });
     return;
   }
   try {
     const buildId = await createAndRunBuild({
-      specPath: body.spec_path,
-      sourceRepo: body.source_repo,
+      specPath: specPath || undefined,
+      specText: specText || undefined,
+      sourceRepo,
       baseBranch: typeof body.base_branch === "string" ? body.base_branch : undefined,
       config: (body.config as Record<string, never>) ?? undefined,
       metadata: (body.metadata as Record<string, unknown>) ?? undefined,

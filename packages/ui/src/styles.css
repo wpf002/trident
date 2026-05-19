@@ -1547,3 +1547,23 @@ a:hover {
 .dim {
   color: rgba(255, 255, 255, 0.5);
 }
+
+.builds-banner {
+  padding: 10px 12px;
+  background: rgba(220, 180, 90, 0.12);
+  border: 1px solid rgba(220, 180, 90, 0.3);
+  color: #e4c477;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.builds-new-stacked {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.builds-spec-area {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+  min-height: 120px;
+}

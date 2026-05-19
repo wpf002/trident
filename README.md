@@ -290,6 +290,25 @@ data/builds/<build_id>/
 
 Successful builds keep the worktree until you merge. Failed/aborted builds keep everything for debugging. `trident build gc` sweeps archived builds older than N days.
 
+### Running on Railway (or any cloud)
+
+Builder works in the deployed Trident instance too — the same dashboard at your Railway URL gets a working Builds tab.
+
+Set these env vars on the Railway service:
+
+| Var | Purpose |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Required — Builder uses Claude for planning/coding/evaluation |
+| `TRIDENT_BUILDER_DEFAULT_REPO` | Git URL the Builder targets (e.g. `https://github.com/you/repo.git`). Pre-fills the UI; omitting it forces the user to pass `source_repo` per build. |
+| `TRIDENT_GITHUB_TOKEN` | Required for private repos; used to authenticate `git clone` |
+| `TRIDENT_DATA_DIR` | Path inside the container that maps to a **persistent volume** — Builder writes builds, cloned repos, and SQLite here |
+| `TRIDENT_BUILDER_GIT_USER_NAME` / `TRIDENT_BUILDER_GIT_USER_EMAIL` | Git committer identity for builds |
+| `TRIDENT_BUILDER_DEFAULT_BASE_BRANCH` | Defaults to `main` |
+
+Mount a Railway volume on the path set by `TRIDENT_DATA_DIR` (e.g. `/data`). Without persistence, every redeploy wipes build history and re-clones the repo from scratch.
+
+The build pipeline ([nixpacks.toml](nixpacks.toml)) compiles `builder-runtime` and `builder` ahead of `ui-server`, so the Railway deploy includes the Builder without changes to your existing setup.
+
 ### Architecture
 
 ```text
