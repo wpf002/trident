@@ -9,6 +9,7 @@ data/trident.db-wal
 data/watcher-state.json
 data/scheduler-state.json
 data/google-token.json
+data/builds/
 credentials.json
 *.js.map
 *.d.ts

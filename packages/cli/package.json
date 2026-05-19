@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
+    "@trident/builder": "1.0.0",
     "@trident/core": "1.0.0",
     "@trident/scheduler": "1.0.0",
     "@trident/ui-server": "1.0.0",

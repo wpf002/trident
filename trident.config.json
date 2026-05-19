@@ -4,5 +4,26 @@
     "code": ["claude", "gpt", "perplexity"],
     "summarize": ["gpt", "claude", "perplexity"],
     "default": ["claude", "gpt", "perplexity"]
+  },
+  "builder": {
+    "defaults": {
+      "tier_planner": "premium",
+      "tier_coder": "main",
+      "tier_evaluator": "utility",
+      "ceilings": {
+        "cost_usd_max": 5.0,
+        "cost_usd_warn": 2.0,
+        "wall_clock_max_min": 60,
+        "cost_per_step_warn": 0.5
+      },
+      "escalation": {
+        "max_attempts": 3,
+        "auto_escalate_to_premium": true
+      },
+      "loop_detector": {
+        "enabled": true,
+        "similarity_threshold": 0.7
+      }
+    }
   }
 }

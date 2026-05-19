@@ -1,6 +1,6 @@
 # Trident
 
-Multi-AI orchestration layer. Connects Claude, ChatGPT, and Perplexity to a single MCP server — shared docs, shared tools, parallel and chained query modes, a web dashboard, scheduled jobs, and synthesis/scoring.
+Multi-AI orchestration layer. Connects Claude, ChatGPT, and Perplexity to a single MCP server — shared docs, shared tools, parallel and chained query modes, a web dashboard, scheduled jobs, synthesis/scoring, and an autonomous coding agent.
 
 ---
 
@@ -21,9 +21,10 @@ Multi-AI orchestration layer. Connects Claude, ChatGPT, and Perplexity to a sing
 | **Diff Synthesis** | `--diff` adds Claude-led agreement/disagreement/conflict analysis |
 | **Confidence Scoring** | `--score` adds per-AI confidence and consensus levels |
 | **Session Replay** | Every parallel/chain run is logged; `trident sessions` lists & replays |
-| **Web UI** | Dark dashboard at `http://localhost:4242` — query interface with live streaming, session history |
+| **Web UI** | Dark dashboard at `http://localhost:4242` — query interface with live streaming, session history, build dashboard |
 | **Scheduler** | `schedules.json` + node-cron run chains on a schedule |
 | **Route Detection** | `trident route detect <prompt>` asks Claude which mode fits |
+| **Builder Module** | Autonomous coding agent — give it a spec, it plans, scaffolds, writes, tests, and commits inside a sandboxed worktree |
 
 ---
 
@@ -172,6 +173,136 @@ trident google login
 ```
 
 That writes a token to `data/google-token.json` (gitignored). The MCP tools `gmail_search`, `gdrive_search`, and `gcal_upcoming` are now usable from Claude/ChatGPT.
+
+---
+
+## Builder Module
+
+Autonomous coding agent built on top of Trident's AI router. Hand it a spec, it plans, writes, tests, and commits — inside a sandboxed git worktree so it can't touch the host repo.
+
+### How it works
+
+```text
+spec → ingest → plan (Opus) → decompose → execute (Sonnet) → evaluate (Haiku)
+                                                ↓
+                                       pass? → next step
+                                       fail? → refine → escalate → human
+                                                ↓
+                                            commit
+```
+
+| Phase | Model tier | Why |
+| --- | --- | --- |
+| Ingest | utility | Cheap structured extraction from the spec |
+| Plan | **premium** | Plan quality compounds — one Opus call saves dozens of retries |
+| Execute (codegen) | main | Sonnet is the workhorse for the hot loop |
+| Evaluate | utility | Pass/fail/confidence is the same shape as `--score` |
+| Cross-check eval | utility (GPT) | Second opinion on contested verdicts |
+| Commit message | utility | GPT-4o-mini writes good messages cheaply |
+
+All overridable via `TRIDENT_*_MODEL` env vars. `--premium` and `--fast` flags shift the whole table up or down a tier — same UX as parallel/chain.
+
+### CLI usage
+
+```bash
+trident build path/to/spec.md                    # build in current repo
+trident build spec.md --repo ../other-project    # target a different repo
+trident build spec.md --premium                  # bump all tiers up
+trident build spec.md --fast                     # cheapest possible run
+trident build list                               # all builds + status
+trident build status <id>                        # detail for one build
+trident build resume <id>                        # continue a paused build
+trident build abort <id>                         # stop a running build
+```
+
+### Sandbox
+
+Every build runs inside an ephemeral git worktree at `data/builds/<build_id>/workspace/`, on its own branch `builder/<build_id>`. The agent never touches your working tree. Final commit lives on that branch — you decide whether to merge it.
+
+Worktree is the v1 sandbox. Docker is wired behind the same interface for v2 (`TRIDENT_BUILDER_SANDBOX=docker`).
+
+### Tool layer
+
+The builder uses the existing MCP tool surface plus new ones added for code work:
+
+| Tool | Purpose |
+| --- | --- |
+| `project_list`, `project_read`, `project_write`, `project_edit`, `project_search` | Workspace-scoped filesystem |
+| `shell_exec` | Run a command inside the sandbox (timeout-bounded, no host secrets) |
+| `git_status`, `git_diff`, `git_branch`, `git_commit`, `git_log` | Git inside the worktree (no push — that's a human action) |
+| `pkg_install`, `pkg_run` | Detects npm/pnpm/yarn/cargo/pip and dispatches |
+| `test_run`, `typecheck`, `lint` | Verification — returns structured pass/fail counts |
+| `browser_*` | Headless Chromium for UI builds (v2) |
+
+These tools are also available to Claude Desktop and ChatGPT via the MCP server — one tool surface, multiple consumers.
+
+### Build dashboard
+
+Open `http://localhost:4242` and click **Builds**. The detail view is a four-pane layout:
+
+- **Plan tree** (left) — live status per step
+- **Active step** (top-right) — current intent, evaluation, redirect / skip / approve controls
+- **Diff** (bottom-left) — live `git diff` against base, file by file
+- **Log** (bottom-right) — every event (tool call, eval, escalation) with timestamps
+
+Header controls: **Pause**, **Abort**, **Commit**. Push is one click deeper — never accidental.
+
+### Guardrails
+
+| Guardrail | Default | Triggers |
+| --- | --- | --- |
+| Cost ceiling | `$5.00` per build | Pause + prompt user to raise |
+| Wall-clock ceiling | `60 min` | Pause |
+| Per-step cost warn | `$0.50` | UI banner |
+| Loop detector | Jaccard > 0.7 on 3 consecutive failures | Force early escalation |
+| Max retries per step | 3 | Escalate to Opus re-plan |
+| Destructive command denylist | `rm -rf /`, `git push -f`, etc. | Refused at runtime, surfaced to human |
+
+Override per-build at creation time, or set defaults in `trident.config.json`:
+
+```json
+{
+  "builder": {
+    "defaults": {
+      "ceilings": { "cost_usd_max": 5.00, "wall_clock_max_min": 60 },
+      "escalation": { "max_attempts": 3, "auto_escalate_to_premium": true }
+    }
+  }
+}
+```
+
+### State & resume
+
+Every build persists to `data/trident.db` in three new tables (`builds`, `build_tasks`, `build_events`), alongside the existing `session_runs`. Every LLM call the builder makes shows up in `trident sessions` filtered by `--project <build_id>` — so the existing session replay works on builder calls for free.
+
+`trident build resume <id>` rehydrates plan + state from SQLite and picks up at the next ready step. The build branch in the worktree is the source of truth for "what's been built" — completed steps are not re-run.
+
+### Build artifacts
+
+```text
+data/builds/<build_id>/
+├── workspace/        # git worktree, branch builder/<build_id>
+├── snapshots/        # git stash refs from sandbox snapshot()
+├── logs/             # stdout/stderr per shell_exec
+├── cache/            # working memory (tree.json, imports.json, memory.md)
+└── manifest.json
+```
+
+Successful builds keep the worktree until you merge. Failed/aborted builds keep everything for debugging. `trident build gc` sweeps archived builds older than N days.
+
+### Architecture
+
+```text
+packages/
+├── builder/             # the agent loop, planner, coder, evaluator, state
+├── builder-runtime/     # sandbox primitives (worktree v1, docker v2)
+├── mcp-server/          # tools the builder uses (also exposed to Claude Desktop / ChatGPT)
+├── ui-server/           # /api/builds/* routes + SSE event stream
+├── ui/                  # /builds view
+└── cli/                 # trident build commands
+```
+
+`builder` depends on `core` (AI clients, tiers) and `builder-runtime` (sandbox). It never spawns processes directly — only through the runtime interface. Swapping worktree for Docker doesn't touch the loop.
 
 ---
 

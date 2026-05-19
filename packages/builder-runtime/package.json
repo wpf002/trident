@@ -1,0 +1,20 @@
+{
+  "name": "@trident/builder-runtime",
+  "version": "1.0.0",
+  "description": "Sandbox primitives for the Trident Builder agent — ephemeral git worktrees, bounded shell execution.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "nanoid": "^5.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3"
+  }
+}

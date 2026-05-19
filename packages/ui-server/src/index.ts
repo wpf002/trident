@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { nanoid } from "nanoid";
 import { listSessions, getSession, insertSession, clearSessions } from "./db.js";
+import { buildsRouter } from "./builds.js";
 import {
   AI_MAP,
   AIMessage,
@@ -338,6 +339,10 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
   send("done", { id: runId, duration_ms: durationMs, finished_at: finishedAt });
   res.end();
 });
+
+// ─── Builds (mounted before static so /api/builds/* wins) ───────────────────
+
+app.use("/api/builds", buildsRouter);
 
 // ─── Static UI (built React bundle) ──────────────────────────────────────────
 

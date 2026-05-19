@@ -12,6 +12,14 @@ import { routeDetect, routeList } from "./commands/route.js";
 import { configShow } from "./commands/config.js";
 import { scheduleList, scheduleRun, scheduleDaemon } from "@trident/scheduler";
 import { googleLogin, googleStatus } from "./commands/google.js";
+import {
+  buildRun,
+  buildList,
+  buildStatusCmd,
+  buildResumeCmd,
+  buildAbortCmd,
+  buildPauseCmd,
+} from "./commands/build.js";
 import { AIName } from "./lib/clients.js";
 import { resolveMode } from "./lib/config.js";
 
@@ -154,6 +162,72 @@ program
     if (opts.port) process.env.TRIDENT_UI_PORT = String(opts.port);
     // Dynamic import avoids loading express into every CLI invocation.
     await import("@trident/ui-server");
+  });
+
+// ─── build ───────────────────────────────────────────────────────────────────
+
+const buildCmd = program
+  .command("build")
+  .description("Autonomous coding agent — plan, write, test, commit from a spec");
+
+buildCmd
+  .command("run <spec>", { isDefault: true })
+  .description("Start a new build from a spec markdown file")
+  .option("-r, --repo <path>", "Source repo to build inside (default: cwd)")
+  .option("-b, --base <branch>", "Base branch to fork from (default: main)")
+  .option("--tier <tier>", "Tier preset: main (default) | premium | fast")
+  .option("--cost-max <usd>", "Override max cost ceiling for this build (USD)", (v) => parseFloat(v))
+  .option("-f, --follow", "Stream events to stdout until the build terminates")
+  .action(async (spec: string, opts) => {
+    if (opts.tier && !["main", "premium", "fast"].includes(opts.tier)) {
+      console.error(chalk.red(`  invalid --tier: ${opts.tier}`));
+      process.exitCode = 1;
+      return;
+    }
+    await buildRun(spec, {
+      repo: opts.repo,
+      base: opts.base,
+      tier: opts.tier,
+      costMax: opts.costMax,
+      follow: opts.follow,
+    });
+  });
+
+buildCmd
+  .command("list")
+  .alias("ls")
+  .description("List builds")
+  .action(() => {
+    buildList();
+  });
+
+buildCmd
+  .command("status <id>")
+  .description("Show a build's status, plan, and progress")
+  .option("-f, --follow", "Stream events after printing the snapshot")
+  .action((id: string, opts) => {
+    buildStatusCmd(id, { follow: opts.follow });
+  });
+
+buildCmd
+  .command("resume <id>")
+  .description("Resume a paused build")
+  .action((id: string) => {
+    buildResumeCmd(id);
+  });
+
+buildCmd
+  .command("pause <id>")
+  .description("Pause a running build (stops at next step boundary)")
+  .action((id: string) => {
+    buildPauseCmd(id);
+  });
+
+buildCmd
+  .command("abort <id>")
+  .description("Abort a running or paused build")
+  .action((id: string) => {
+    buildAbortCmd(id);
   });
 
 // ─── google ──────────────────────────────────────────────────────────────────

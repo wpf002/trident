@@ -14,9 +14,19 @@ import { fileTools, handleFileTool } from "./tools/files.js";
 import { apiTools, handleApiTool } from "./tools/api.js";
 import { perplexityTools, handlePerplexityTool } from "./tools/perplexity.js";
 import { googleTools, handleGoogleTool } from "./tools/google.js";
+import { fsProjectTools, handleFsProjectTool } from "./tools/fs_project.js";
+import { shellTools, handleShellTool } from "./tools/shell.js";
+import { gitTools, handleGitTool } from "./tools/git.js";
+import { pkgTools, handlePkgTool } from "./tools/pkg.js";
+import { testTools, handleTestTool } from "./tools/test.js";
+import { buildCtxTools, handleBuildCtxTool } from "./tools/build_ctx.js";
+import { browserTools, handleBrowserTool } from "./tools/browser.js";
+import { createDefaultToolContext } from "./lib/builder-ctx.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+
+const builderCtx = createDefaultToolContext();
 
 const allTools = [
   ...searchTools,
@@ -24,6 +34,13 @@ const allTools = [
   ...apiTools,
   ...perplexityTools,
   ...googleTools,
+  ...fsProjectTools,
+  ...shellTools,
+  ...gitTools,
+  ...pkgTools,
+  ...testTools,
+  ...buildCtxTools,
+  ...browserTools,
 ];
 
 const server = new Server(
@@ -61,6 +78,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       result = await handlePerplexityTool(name, safeArgs);
     } else if (googleTools.some((t) => t.name === name)) {
       result = await handleGoogleTool(name, safeArgs);
+    } else if (fsProjectTools.some((t) => t.name === name)) {
+      result = await handleFsProjectTool(name, safeArgs, builderCtx);
+    } else if (shellTools.some((t) => t.name === name)) {
+      result = await handleShellTool(name, safeArgs, builderCtx);
+    } else if (gitTools.some((t) => t.name === name)) {
+      result = await handleGitTool(name, safeArgs, builderCtx);
+    } else if (pkgTools.some((t) => t.name === name)) {
+      result = await handlePkgTool(name, safeArgs, builderCtx);
+    } else if (testTools.some((t) => t.name === name)) {
+      result = await handleTestTool(name, safeArgs, builderCtx);
+    } else if (buildCtxTools.some((t) => t.name === name)) {
+      result = await handleBuildCtxTool(name, safeArgs, builderCtx);
+    } else if (browserTools.some((t) => t.name === name)) {
+      result = await handleBrowserTool(name, safeArgs, builderCtx);
     } else {
       throw new Error(`Unknown tool: ${name}`);
     }

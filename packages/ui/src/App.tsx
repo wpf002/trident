@@ -2,9 +2,10 @@ import { useState } from "react";
 import { SessionsView } from "./components/SessionsView.js";
 import { QueryView } from "./components/QueryView.js";
 import { ImageView } from "./components/ImageView.js";
+import { BuildsView } from "./components/BuildsView.js";
 import { Brand } from "./components/Brand.js";
 
-type Tab = "query" | "image" | "sessions";
+type Tab = "query" | "image" | "builds" | "sessions";
 
 export function App() {
   const [tab, setTab] = useState<Tab>("query");
@@ -28,6 +29,12 @@ export function App() {
           Image
         </button>
         <button
+          className={"nav-item" + (tab === "builds" ? " active" : "")}
+          onClick={() => setTab("builds")}
+        >
+          Builds
+        </button>
+        <button
           className={"nav-item" + (tab === "sessions" ? " active" : "")}
           onClick={() => setTab("sessions")}
         >
@@ -40,6 +47,9 @@ export function App() {
         </div>
         <div className={"view" + (tab !== "image" ? " view-hidden" : "")}>
           <ImageView />
+        </div>
+        <div className={"view" + (tab !== "builds" ? " view-hidden" : "")}>
+          <BuildsView active={tab === "builds"} />
         </div>
         <div className={"view" + (tab !== "sessions" ? " view-hidden" : "")}>
           <SessionsView active={tab === "sessions"} />

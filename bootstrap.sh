@@ -31,6 +31,7 @@ echo -e "${GREEN}  ✓ Node.js $(node -v)${RESET}"
 echo -e "${GRAY}  Creating data directories…${RESET}"
 mkdir -p data/docs
 mkdir -p data/docs/briefings
+mkdir -p data/builds
 
 # ─── Default config files ────────────────────────────────────────────────────
 
@@ -42,10 +43,31 @@ if [ ! -f "trident.config.json" ]; then
     "code": ["claude", "gpt", "perplexity"],
     "summarize": ["gpt", "claude", "perplexity"],
     "default": ["claude", "gpt", "perplexity"]
+  },
+  "builder": {
+    "defaults": {
+      "tier_planner": "premium",
+      "tier_coder": "main",
+      "tier_evaluator": "utility",
+      "ceilings": {
+        "cost_usd_max": 5.0,
+        "cost_usd_warn": 2.0,
+        "wall_clock_max_min": 60,
+        "cost_per_step_warn": 0.5
+      },
+      "escalation": {
+        "max_attempts": 3,
+        "auto_escalate_to_premium": true
+      },
+      "loop_detector": {
+        "enabled": true,
+        "similarity_threshold": 0.7
+      }
+    }
   }
 }
 EOF
-  echo -e "${GREEN}  ✓ trident.config.json created (default routing modes)${RESET}"
+  echo -e "${GREEN}  ✓ trident.config.json created (routing + builder defaults)${RESET}"
 else
   echo -e "${GREEN}  ✓ trident.config.json already exists${RESET}"
 fi
@@ -75,7 +97,7 @@ echo -e "${GREEN}  ✓ Dependencies installed${RESET}"
 
 # ─── Build TypeScript and UI ─────────────────────────────────────────────────
 
-echo -e "${GRAY}  Building packages (server, scheduler, ui-server, ui, cli)…${RESET}"
+echo -e "${GRAY}  Building packages (core, builder-runtime, server, scheduler, ui-server, ui, cli)…${RESET}"
 npm run build
 
 echo -e "${GREEN}  ✓ Build complete${RESET}"

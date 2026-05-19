@@ -1,25 +1,21 @@
 {
-  "name": "@trident/mcp-server",
+  "name": "@trident/builder",
   "version": "1.0.0",
-  "description": "Shared MCP server for Claude, ChatGPT, and Perplexity",
+  "description": "Autonomous coding agent for Trident — plan, write, test, commit inside a sandbox.",
   "type": "module",
   "main": "dist/index.js",
-  "bin": {
-    "trident-server": "./dist/index.js"
-  },
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/index.js",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@anthropic-ai/sdk": "^0.27.0",
     "@trident/builder-runtime": "*",
+    "@trident/core": "*",
     "better-sqlite3": "^12.9.0",
-    "dotenv": "^16.4.5",
-    "googleapis": "^144.0.0",
-    "google-auth-library": "^9.14.0",
+    "nanoid": "^5.0.7",
     "zod": "^3.22.4"
   },
   "devDependencies": {
