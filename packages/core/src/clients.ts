@@ -14,6 +14,11 @@ export const AI_LABELS: Record<AIName, string> = {
   perplexity: "Perplexity",
 };
 
+/** Human label for an AI name, falling back to upper-case for unknown values. */
+export function aiLabel(ai: string): string {
+  return (AI_LABELS as Record<string, string>)[ai] ?? ai.toUpperCase();
+}
+
 // ─── Call options ────────────────────────────────────────────────────────────
 
 export interface CallOptions {

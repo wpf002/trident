@@ -14,6 +14,11 @@ import {
   getSessionRun,
   logSessionRun,
   clearSessionRuns,
+  aiLabel,
+  formatResponsesForSynthesis,
+  parseConfidenceReport,
+  DIFF_SYSTEM_PROMPT,
+  CONFIDENCE_SYSTEM_PROMPT,
 } from "@trident/core";
 import {
   AI_MAP,
@@ -194,48 +199,8 @@ interface QueryBody {
 
 const VALID_TIERS: ReadonlySet<string> = new Set(["premium", "main", "utility"]);
 
-const DIFF_SYSTEM_PROMPT = `You are an analyst comparing multiple AI responses to the same prompt. Produce a structured comparison with three sections, in this order, using these exact markdown headings:
-
-## Agreement
-Bullet points covering substantive claims, facts, or recommendations all responses share.
-
-## Disagreement
-Bullet points covering points where the responses differ. Identify which AI says what.
-
-## Conflicts
-Bullet points flagging any claims that directly contradict each other or look factually incorrect. If you cannot verify a claim, mark it as "unverifiable". If there are no conflicts, write "None identified."
-
-Be concise and concrete.`;
-
-const CONFIDENCE_SYSTEM_PROMPT = `You are evaluating multiple AI responses to a single prompt. Return ONLY a JSON object — no markdown fences, no preamble — with exactly this shape:
-
-{
-  "scores": [{ "ai": "<ai name>", "confidence": <0-100>, "rationale": "<one sentence>" }],
-  "agreement": "low" | "medium" | "high",
-  "consensus": ["<short bullet>", "..."],
-  "disagreement": ["<short bullet>", "..."]
-}
-
-One scores entry per response, in the same order given. Do not invent AI names — use the names exactly as given.`;
-
-function formatResponsesForSynthesis(
-  prompt: string,
-  responses: Array<{ ai: string; content: string; error?: string }>
-): string {
-  const sections = responses.map((r, i) => {
-    if (r.error) return `### Response ${i + 1} — ${r.ai} (errored)\n\n[Error: ${r.error}]`;
-    return `### Response ${i + 1} — ${r.ai}\n\n${r.content}`;
-  });
-  return [
-    "The user asked the following prompt to multiple AIs in parallel:",
-    "",
-    `> ${prompt.replace(/\n/g, "\n> ")}`,
-    "",
-    "Here are their responses:",
-    "",
-    ...sections,
-  ].join("\n");
-}
+// Diff/score prompts + formatter + parser are shared via @trident/core so the
+// UI and CLI can't drift (imported at the top of this file).
 
 function parseQuery(body: unknown): QueryBody | { error: string } {
   if (!body || typeof body !== "object") return { error: "body must be JSON" };
@@ -365,7 +330,7 @@ app.post("/api/query/stream", queryLimiter, async (req: Request, res: Response) 
 
   if (parsed.diff && usableForSynthesis.length >= 2) {
     send("synthesis_start", { kind: "diff" });
-    const diffPrompt = formatResponsesForSynthesis(parsed.prompt, collected);
+    const diffPrompt = formatResponsesForSynthesis(parsed.prompt, collected, aiLabel);
     const diffResult = await callClaude(
       [{ role: "user", content: diffPrompt }],
       DIFF_SYSTEM_PROMPT,
@@ -382,7 +347,7 @@ app.post("/api/query/stream", queryLimiter, async (req: Request, res: Response) 
 
   if (parsed.score && usableForSynthesis.length >= 2) {
     send("synthesis_start", { kind: "score" });
-    const scorePrompt = formatResponsesForSynthesis(parsed.prompt, collected);
+    const scorePrompt = formatResponsesForSynthesis(parsed.prompt, collected, aiLabel);
     const scoreResult = await callClaude(
       [{ role: "user", content: scorePrompt }],
       CONFIDENCE_SYSTEM_PROMPT,
@@ -391,13 +356,11 @@ app.post("/api/query/stream", queryLimiter, async (req: Request, res: Response) 
     let report: unknown = null;
     let scoreError: string | undefined = scoreResult.error;
     if (!scoreError) {
+      // Shared, validated parser (same one the CLI uses).
       try {
-        let text = scoreResult.content.trim();
-        const fence = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-        if (fence) text = fence[1].trim();
-        report = JSON.parse(text);
+        report = parseConfidenceReport(scoreResult.content);
       } catch (err) {
-        scoreError = `Failed to parse confidence report: ${err instanceof Error ? err.message : String(err)}`;
+        scoreError = err instanceof Error ? err.message : String(err);
       }
     }
     send("synthesis_done", { kind: "score", report, error: scoreError });
