@@ -171,7 +171,38 @@ One-time setup:
 trident google login
 ```
 
-That writes a token to `data/google-token.json` (gitignored). The MCP tools `gmail_search`, `gdrive_search`, and `gcal_upcoming` are now usable from Claude/ChatGPT.
+That writes a token to `data/google-token.json` (gitignored, `0600`). The MCP tools `gmail_search`, `gdrive_search`, and `gcal_upcoming` are now usable from Claude/ChatGPT. The token grants **read-only** access to Gmail, Drive, and Calendar.
+
+---
+
+## Security & Deployment Hardening
+
+The `ui-server` (the web UI's API) talks to your SQLite history and spends your paid LLM API keys. It is safe to run **bound to localhost** with no extra config, but **must be locked down before you expose it on a network** (e.g. Railway). Configure these via environment variables (see `.env.example`):
+
+| Variable | Purpose | When to set |
+|---|---|---|
+| `TRIDENT_API_TOKEN` | Requires `Authorization: Bearer <token>` on every `/api` route; the UI shows a one-time token gate. | **Always, before any public/network deployment.** |
+| `HOST` | Interface to bind. Defaults to `0.0.0.0`. | Set `127.0.0.1` if the server should only be reachable locally. |
+| `TRIDENT_ALLOWED_ORIGINS` | Comma-separated CORS allowlist. Empty = block all cross-origin browser access. | Only if a browser on a **different** origin must call the API. |
+| `TRIDENT_TOKEN_KEY` | Encrypts the Google OAuth token at rest with AES-256-GCM. Without it the token is plaintext but `0600`. | Recommended wherever the disk/backups aren't fully trusted. |
+
+Generate strong values:
+
+```bash
+openssl rand -hex 32      # use for TRIDENT_API_TOKEN
+openssl rand -hex 32      # use a different one for TRIDENT_TOKEN_KEY
+```
+
+**Deploying to Railway (or any public host):**
+
+1. In the service **Variables**, set `TRIDENT_API_TOKEN` (required) and `TRIDENT_TOKEN_KEY` (recommended). Do **not** commit these.
+2. Leave `HOST` at the default so the platform can route to it; the bearer token — not localhost binding — is what protects a public deployment.
+3. The server logs a startup warning if it is bound publicly with **no** token set, and emits structured `[audit]` log lines for auth failures, history clears, queries, and rate-limit hits.
+4. Rate limiting is on by default (300 req / 15 min globally, 30 / 15 min on the paid query route).
+
+**If you set `TRIDENT_TOKEN_KEY` after already logging in:** re-run `trident google login` once so the stored token is re-written in encrypted form (existing plaintext tokens are still read for backward compatibility).
+
+> **Note (read-only scopes):** if you authorized Google before this hardening, the old token may still carry the broader `gmail.modify` scope. Re-run `trident google login` to re-consent with read-only scopes, or revoke the old grant at <https://myaccount.google.com/permissions>.
 
 ---
 
