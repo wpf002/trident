@@ -1,4 +1,4 @@
-import chalk, { ChalkInstance } from "chalk";
+import chalk from "chalk";
 import ora from "ora";
 import { nanoid } from "nanoid";
 import { AI_MAP, AIMessage, AIName, AIResponse, DEFAULT_ORDER } from "../lib/clients.js";
@@ -6,22 +6,7 @@ import type { ModelTier } from "@trident/core";
 import { logSessionRun, SessionRunResponse } from "../lib/db.js";
 import { formatRunMarkdown, writeRunOutput } from "../lib/output.js";
 import { runDiffSynthesis, runConfidenceScoring, ConfidenceReport } from "../lib/synthesis.js";
-
-const AI_COLORS: Record<AIName, ChalkInstance> = {
-  claude: chalk.hex("#D4A017"),
-  gpt: chalk.hex("#10A37F"),
-  perplexity: chalk.hex("#6C63FF"),
-};
-
-const AI_LABELS: Record<AIName, string> = {
-  claude: "Claude",
-  gpt: "ChatGPT",
-  perplexity: "Perplexity",
-};
-
-function aiDisplayName(ai: string): string {
-  return (AI_LABELS as Record<string, string>)[ai] ?? ai.toUpperCase();
-}
+import { AI_COLORS, AI_LABELS, aiLabel as aiDisplayName } from "../lib/display.js";
 
 function printConfidenceReport(scoring: {
   report?: ConfidenceReport;

@@ -1,16 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { SessionRunResponse } from "./db.js";
-
-const AI_HEADERS: Record<string, string> = {
-  claude: "Claude",
-  gpt: "ChatGPT",
-  perplexity: "Perplexity",
-};
-
-function aiHeader(ai: string): string {
-  return AI_HEADERS[ai] ?? ai.toUpperCase();
-}
+import { aiLabel as aiHeader } from "./display.js";
 
 interface BaseRunMeta {
   id: string;

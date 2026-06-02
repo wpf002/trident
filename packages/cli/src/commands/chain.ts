@@ -1,24 +1,13 @@
-import chalk, { ChalkInstance } from "chalk";
+import chalk from "chalk";
 import { nanoid } from "nanoid";
 import { AI_MAP, AIMessage, AIName, AIResponse, DEFAULT_ORDER } from "../lib/clients.js";
 import { CHAIN_PRESETS } from "@trident/core";
 import type { ModelTier } from "@trident/core";
 import { logSessionRun, SessionRunResponse } from "../lib/db.js";
 import { formatRunMarkdown, writeRunOutput } from "../lib/output.js";
+import { AI_COLORS, AI_LABELS } from "../lib/display.js";
 
 export { CHAIN_PRESETS };
-
-const AI_COLORS: Record<AIName, ChalkInstance> = {
-  claude: chalk.hex("#D4A017"),
-  gpt: chalk.hex("#10A37F"),
-  perplexity: chalk.hex("#6C63FF"),
-};
-
-const AI_LABELS: Record<AIName, string> = {
-  claude: "Claude",
-  gpt: "ChatGPT",
-  perplexity: "Perplexity",
-};
 
 export interface ChainRunResult {
   id: string;

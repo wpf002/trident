@@ -2,16 +2,7 @@ import chalk from "chalk";
 import ora from "ora";
 import { callClaude } from "../lib/clients.js";
 import { listModes, loadConfig } from "../lib/config.js";
-
-const AI_LABELS: Record<string, string> = {
-  claude: "Claude",
-  gpt: "ChatGPT",
-  perplexity: "Perplexity",
-};
-
-function aiLabel(ai: string): string {
-  return AI_LABELS[ai] ?? ai.toUpperCase();
-}
+import { aiLabel } from "../lib/display.js";
 
 export function routeList() {
   const modes = listModes();

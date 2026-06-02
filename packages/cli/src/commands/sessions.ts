@@ -1,25 +1,6 @@
-import chalk, { ChalkInstance } from "chalk";
+import chalk from "chalk";
 import { listSessionRuns, getSessionRun, SessionRunRecord } from "../lib/db.js";
-
-const AI_COLORS: Record<string, ChalkInstance> = {
-  claude: chalk.hex("#D4A017"),
-  gpt: chalk.hex("#10A37F"),
-  perplexity: chalk.hex("#6C63FF"),
-};
-
-const AI_LABELS: Record<string, string> = {
-  claude: "Claude",
-  gpt: "ChatGPT",
-  perplexity: "Perplexity",
-};
-
-function aiLabel(ai: string): string {
-  return AI_LABELS[ai] ?? ai.toUpperCase();
-}
-
-function aiColor(ai: string): ChalkInstance {
-  return AI_COLORS[ai] ?? chalk.white;
-}
+import { aiLabel, aiColor } from "../lib/display.js";
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + "…" : s;
