@@ -44,9 +44,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 });
 
 // Handle tool calls
+// Audit trail for tool invocations. Writes to STDERR — stdout is the JSON-RPC
+// transport and must not be polluted. Logs the tool name and outcome only;
+// never the full arguments (queries/paths may be sensitive).
+function auditTool(name: string, outcome: "ok" | "error", startedAt: number) {
+  const line = { ts: new Date().toISOString(), tool: name, outcome, ms: Date.now() - startedAt };
+  console.error(`[audit] ${JSON.stringify(line)}`);
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
   const safeArgs = (args ?? {}) as Record<string, unknown>;
+  const startedAt = Date.now();
 
   try {
     let result: string;
@@ -65,6 +74,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       throw new Error(`Unknown tool: ${name}`);
     }
 
+    auditTool(name, "ok", startedAt);
     return {
       content: [
         {
@@ -75,6 +85,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    auditTool(name, "error", startedAt);
     return {
       content: [
         {

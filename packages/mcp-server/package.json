@@ -15,10 +15,11 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@trident/core": "1.0.0",
     "better-sqlite3": "^12.9.0",
     "dotenv": "^16.4.5",
-    "googleapis": "^144.0.0",
     "google-auth-library": "^9.14.0",
+    "googleapis": "^173.0.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

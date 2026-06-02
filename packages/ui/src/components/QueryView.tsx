@@ -2,6 +2,7 @@ import { useState } from "react";
 import { aiLabel, AIName } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
 import { formatDuration } from "../lib/format.js";
+import { apiFetch } from "../lib/api.js";
 
 interface StreamResponse {
   ai: AIName;
@@ -114,7 +115,7 @@ export function QueryView() {
 
     let response: Response;
     try {
-      response = await fetch("/api/query/stream", {
+      response = await apiFetch("/api/query/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify(body),

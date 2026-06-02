@@ -1,6 +1,9 @@
 #!/usr/bin/env node
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -24,11 +27,130 @@ const REPO_ROOT = path.resolve(__dirname, "../../..");
 dotenv.config({ path: path.join(REPO_ROOT, ".env") });
 
 const PORT = parseInt(process.env.PORT ?? process.env.TRIDENT_UI_PORT ?? "4242", 10);
+const HOST = process.env.HOST ?? "0.0.0.0";
 const STATIC_DIR = path.join(__dirname, "..", "static");
 
+// ─── Security config ──────────────────────────────────────────────────────────
+// Optional shared bearer token. When set, all /api routes (except the public
+// auth-status probe) require `Authorization: Bearer <token>`. When unset, the
+// API is open — safe only when bound to localhost.
+const API_TOKEN = process.env.TRIDENT_API_TOKEN?.trim() || undefined;
+// Comma-separated CORS allowlist. The same-origin UI does not need CORS, so the
+// default (empty) blocks all cross-origin browser access.
+const ALLOWED_ORIGINS = (process.env.TRIDENT_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+const isPublicBind = HOST !== "127.0.0.1" && HOST !== "localhost";
+
+// Structured security/audit log. One JSON line per event to stdout. Never
+// includes secrets, tokens, or prompt/response bodies — only metadata.
+function audit(event: string, req: Request, extra: Record<string, unknown> = {}) {
+  const line = {
+    ts: new Date().toISOString(),
+    event,
+    ip: req.ip,
+    method: req.method,
+    path: req.path,
+    ...extra,
+  };
+  console.log(`[audit] ${JSON.stringify(line)}`);
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+function extractBearer(req: Request): string | undefined {
+  const h = req.header("authorization");
+  if (h && h.startsWith("Bearer ")) return h.slice(7).trim();
+  return undefined;
+}
+
+// Gate every /api route except the public probe. No-op when no token is set.
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!API_TOKEN) return next();
+  if (req.path === "/auth/status") return next();
+  const token = extractBearer(req);
+  if (!token || !timingSafeEqual(token, API_TOKEN)) {
+    audit("auth_failure", req, { reason: token ? "bad_token" : "no_token" });
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  next();
+}
+
 const app = express();
-app.use(cors());
+app.disable("x-powered-by");
+// Trust the first proxy hop (Railway/edge) so req.ip and rate-limiting key off
+// the real client address rather than the proxy. Keep at 1 (not `true`) to
+// avoid X-Forwarded-For spoofing that would let clients evade rate limits.
+app.set("trust proxy", 1);
+app.use(
+  helmet({
+    // CSP tuned for the Vite bundle (same-origin module script), Google Fonts,
+    // and KaTeX/inline styles. Adjust if you add cross-origin assets.
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    // Allow cross-origin font/style loads (Google Fonts) under default policies.
+    crossOriginEmbedderPolicy: false,
+  })
+);
+app.use(
+  cors({
+    origin: ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : false,
+  })
+);
 app.use(express.json({ limit: "5mb" }));
+
+// ─── Rate limiting ─────────────────────────────────────────────────────────────
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    audit("rate_limited", req, { scope: "api" });
+    res.status(429).json({ error: "rate_limited" });
+  },
+});
+// Paid-LLM endpoint: tighter cap to bound spend / abuse.
+const queryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    audit("rate_limited", req, { scope: "query" });
+    res.status(429).json({ error: "rate_limited", detail: "Too many queries; try again later." });
+  },
+});
+app.use("/api", apiLimiter);
+app.use("/api", requireAuth);
+
+// ─── Auth probe (public) ─────────────────────────────────────────────────────
+// Lets the UI know whether to show a token gate. Returns no secret.
+app.get("/api/auth/status", (_req: Request, res: Response) => {
+  res.json({ authRequired: !!API_TOKEN });
+});
+// Authenticated no-op the UI uses to validate an entered token.
+app.get("/api/auth/check", (_req: Request, res: Response) => {
+  res.json({ ok: true });
+});
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
@@ -36,8 +158,9 @@ app.get("/api/sessions", (_req: Request, res: Response) => {
   res.json({ sessions: listSessions(200) });
 });
 
-app.delete("/api/sessions", (_req: Request, res: Response) => {
+app.delete("/api/sessions", (req: Request, res: Response) => {
   const removed = clearSessions();
+  audit("sessions_cleared", req, { removed });
   res.json({ removed });
 });
 
@@ -139,7 +262,7 @@ function parseQuery(body: unknown): QueryBody | { error: string } {
   };
 }
 
-app.post("/api/query/stream", async (req: Request, res: Response) => {
+app.post("/api/query/stream", queryLimiter, async (req: Request, res: Response) => {
   const parsed = parseQuery(req.body);
   if ("error" in parsed) {
     res.status(400).json({ error: parsed.error });
@@ -172,6 +295,7 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
     order = parsed.ais ?? ["claude", "gpt", "perplexity"];
   }
 
+  audit("query", req, { runId, mode: parsed.mode, ais: order, tier: parsed.tier ?? "main", prompt_len: parsed.prompt.length });
   send("start", { id: runId, mode: parsed.mode, order, started_at: startedAt });
 
   interface TimedResponse extends AIResponse {
@@ -302,7 +426,9 @@ app.post("/api/query/stream", async (req: Request, res: Response) => {
       finished_at: finishedAt,
     });
   } catch (err) {
-    send("warn", { message: `Failed to persist session: ${err instanceof Error ? err.message : String(err)}` });
+    // Log full detail server-side; send a generic note to the client.
+    console.error(`[error] failed to persist session ${runId}:`, err);
+    send("warn", { message: "Failed to persist session." });
   }
 
   send("done", { id: runId, duration_ms: durationMs, finished_at: finishedAt });
@@ -322,10 +448,33 @@ if (fs.existsSync(STATIC_DIR)) {
   });
 }
 
+// ─── Error handler ────────────────────────────────────────────────────────────
+// Final middleware: log the real error server-side and return a generic message
+// so stack traces / internal detail never reach the client (regardless of
+// NODE_ENV, which otherwise governs Express's default stack-trace behavior).
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  console.error(`[error] ${req.method} ${req.path}:`, err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: "internal_error" });
+});
+
 // ─── Start ───────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => {
-  console.log(`Trident UI server listening on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Trident UI server listening on http://${HOST}:${PORT}`);
+  if (API_TOKEN) {
+    console.log("Auth: ENABLED (TRIDENT_API_TOKEN set — /api requires a bearer token).");
+  } else if (isPublicBind) {
+    console.warn(
+      `⚠ Auth DISABLED and bound to ${HOST} (public). Anyone who can reach this host can read/delete\n` +
+        `  history and spend your API keys. Set TRIDENT_API_TOKEN, or bind locally with HOST=127.0.0.1.`
+    );
+  } else {
+    console.log("Auth: disabled (bound to localhost — set TRIDENT_API_TOKEN before exposing publicly).");
+  }
+  if (ALLOWED_ORIGINS.length) {
+    console.log(`CORS allowlist: ${ALLOWED_ORIGINS.join(", ")}`);
+  }
   if (!fs.existsSync(STATIC_DIR)) {
     console.log(`(static UI bundle not found at ${STATIC_DIR} — run 'npm run build --workspace=packages/ui' to build it)`);
   }

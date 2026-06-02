@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { SessionRun, aiLabel } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
 import { formatDuration } from "../lib/format.js";
+import { apiFetch } from "../lib/api.js";
 
 function modeLabel(mode: string): string {
   return mode.charAt(0).toUpperCase() + mode.slice(1);
@@ -36,14 +37,14 @@ function dayKey(iso: string): string {
 }
 
 async function fetchSessions(): Promise<SessionRun[]> {
-  const res = await fetch("/api/sessions");
+  const res = await apiFetch("/api/sessions");
   if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
   const data = (await res.json()) as { sessions: SessionRun[] };
   return data.sessions;
 }
 
 async function fetchSession(id: string): Promise<SessionRun> {
-  const res = await fetch(`/api/sessions/${encodeURIComponent(id)}`);
+  const res = await apiFetch(`/api/sessions/${encodeURIComponent(id)}`);
   if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
   const data = (await res.json()) as { session: SessionRun };
   return data.session;
@@ -88,7 +89,7 @@ export function SessionsView({ active = true }: { active?: boolean }) {
     const ok = window.confirm(`Clear all ${sessions.length} sessions? This cannot be undone.`);
     if (!ok) return;
     try {
-      const res = await fetch("/api/sessions", { method: "DELETE" });
+      const res = await apiFetch("/api/sessions", { method: "DELETE" });
       if (!res.ok) throw new Error(`clear failed: ${res.status}`);
       setSessions([]);
       setSelected(null);

@@ -25,9 +25,16 @@ const ALLOWED_EXTENSIONS = [
   ".env.example",
 ];
 
+// True only when `resolved` is DOCS_DIR itself or strictly inside it. Uses
+// path.relative so a sibling like `<root>/data/docs-secrets` cannot pass the
+// way a naive startsWith(DOCS_DIR) prefix check would.
+function isInsideDocs(resolved: string): boolean {
+  const rel = path.relative(DOCS_DIR, resolved);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
 function isSafePath(requestedPath: string): boolean {
-  const resolved = path.resolve(DOCS_DIR, requestedPath);
-  return resolved.startsWith(DOCS_DIR);
+  return isInsideDocs(path.resolve(DOCS_DIR, requestedPath));
 }
 
 export const fileTools = [
@@ -80,7 +87,7 @@ export function handleFileTool(
         ? path.resolve(DOCS_DIR, subdir)
         : DOCS_DIR;
 
-      if (!targetDir.startsWith(DOCS_DIR)) {
+      if (!isInsideDocs(targetDir)) {
         return JSON.stringify({ error: "Access denied: path outside docs directory" });
       }
 

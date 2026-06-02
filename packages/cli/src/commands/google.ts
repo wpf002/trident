@@ -3,8 +3,17 @@ import path from "path";
 import { fileURLToPath } from "url";
 import readline from "readline";
 import http from "http";
+import crypto from "crypto";
 import chalk from "chalk";
-import { OAuth2Client } from "google-auth-library";
+import { OAuth2Client, CodeChallengeMethod } from "google-auth-library";
+import { readSecretFile, writeSecretFile, tokenEncryptionEnabled } from "@trident/core";
+
+// PKCE (RFC 7636) + CSRF state for the OAuth authorization-code flow.
+function makePkce(): { codeVerifier: string; codeChallenge: string } {
+  const codeVerifier = crypto.randomBytes(32).toString("base64url");
+  const codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
+  return { codeVerifier, codeChallenge };
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
@@ -12,8 +21,8 @@ const CREDENTIALS_PATH = path.join(REPO_ROOT, "credentials.json");
 const TOKEN_PATH = path.join(REPO_ROOT, "data", "google-token.json");
 
 const SCOPES = [
+  // Read-only least privilege: the tools only ever read mail/drive/calendar.
   "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/calendar.readonly",
 ];
@@ -39,9 +48,8 @@ function loadCredentials() {
 }
 
 function saveToken(token: unknown) {
-  const dir = path.dirname(TOKEN_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(TOKEN_PATH, JSON.stringify(token, null, 2), "utf-8");
+  // Written 0600, and AES-256-GCM-encrypted when TRIDENT_TOKEN_KEY is set.
+  writeSecretFile(TOKEN_PATH, token);
 }
 
 function ask(question: string): Promise<string> {
@@ -50,8 +58,9 @@ function ask(question: string): Promise<string> {
 }
 
 async function loopbackFlow(
-  client: OAuth2Client,
-  redirectUri: string
+  redirectUri: string,
+  authUrl: string,
+  expectedState: string
 ): Promise<string> {
   const url = new URL(redirectUri);
   if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
@@ -61,12 +70,6 @@ async function loopbackFlow(
     );
   }
   const port = url.port ? parseInt(url.port, 10) : 80;
-
-  const authUrl = client.generateAuthUrl({
-    access_type: "offline",
-    scope: SCOPES,
-    prompt: "consent",
-  });
 
   console.log(chalk.gray("\n  Open this URL in your browser:\n"));
   console.log("  " + chalk.cyan(authUrl) + "\n");
@@ -78,6 +81,7 @@ async function loopbackFlow(
         const u = new URL(req.url ?? "/", redirectUri);
         const code = u.searchParams.get("code");
         const error = u.searchParams.get("error");
+        const state = u.searchParams.get("state");
         if (error) {
           res.writeHead(400, { "Content-Type": "text/plain" });
           res.end(`OAuth error: ${error}`);
@@ -88,6 +92,14 @@ async function loopbackFlow(
         if (!code) {
           res.writeHead(400, { "Content-Type": "text/plain" });
           res.end("No authorization code in callback.");
+          return;
+        }
+        // CSRF protection: reject a callback whose state doesn't match what we sent.
+        if (state !== expectedState) {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("State mismatch — possible CSRF. Authorization rejected.");
+          server.close();
+          reject(new Error("OAuth state mismatch — authorization rejected."));
           return;
         }
         res.writeHead(200, { "Content-Type": "text/html" });
@@ -127,16 +139,23 @@ export async function googleLogin() {
   console.log("\n" + chalk.bold.white("  Trident — Google OAuth setup"));
   console.log(chalk.gray(`  Scopes: ${SCOPES.join(", ")}`));
 
+  // PKCE verifier/challenge + CSRF state, shared across both flows.
+  const { codeVerifier, codeChallenge } = makePkce();
+  const state = crypto.randomBytes(16).toString("hex");
+  const authUrl = client.generateAuthUrl({
+    access_type: "offline",
+    scope: SCOPES,
+    prompt: "consent",
+    state,
+    code_challenge_method: CodeChallengeMethod.S256,
+    code_challenge: codeChallenge,
+  });
+
   let code: string;
   try {
     if (redirectUri.startsWith("http://localhost") || redirectUri.startsWith("http://127.0.0.1")) {
-      code = await loopbackFlow(client, redirectUri);
+      code = await loopbackFlow(redirectUri, authUrl, state);
     } else {
-      const authUrl = client.generateAuthUrl({
-        access_type: "offline",
-        scope: SCOPES,
-        prompt: "consent",
-      });
       console.log(chalk.gray("\n  Open this URL, complete consent, and paste the code shown:\n"));
       console.log("  " + chalk.cyan(authUrl) + "\n");
       code = await ask("  Authorization code: ");
@@ -149,9 +168,15 @@ export async function googleLogin() {
   }
 
   try {
-    const { tokens } = await client.getToken(code);
+    // Completes PKCE — the verifier must match the challenge sent above.
+    const { tokens } = await client.getToken({ code, codeVerifier });
     saveToken(tokens);
-    console.log(chalk.green(`\n  ✓ Token saved to ${TOKEN_PATH}`));
+    console.log(
+      chalk.green(
+        `\n  ✓ Token saved to ${TOKEN_PATH}` +
+          (tokenEncryptionEnabled() ? " (encrypted)" : " (0600; set TRIDENT_TOKEN_KEY to encrypt at rest)")
+      )
+    );
     if (!tokens.refresh_token) {
       console.log(
         chalk.yellow(
@@ -175,7 +200,7 @@ export function googleStatus() {
   console.log(`  ${tokenExists ? chalk.green("✓") : chalk.red("✗")}  token             ${chalk.gray(TOKEN_PATH)}`);
   if (tokenExists) {
     try {
-      const token = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8")) as { expiry_date?: number; scope?: string };
+      const token = (readSecretFile<{ expiry_date?: number; scope?: string }>(TOKEN_PATH)) ?? {};
       if (token.expiry_date) {
         const expiresAt = new Date(token.expiry_date).toISOString();
         const expired = token.expiry_date < Date.now();

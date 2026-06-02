@@ -1004,6 +1004,37 @@ a:hover {
   text-decoration: underline;
 }
 
+/* ─── Auth gate ───────────────────────────────────────────────────────────── */
+
+.auth-gate {
+  height: 100vh;
+  height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+}
+.nav-item.sign-out {
+  margin-top: auto;
+  color: var(--text-faint);
+}
+.nav-item.sign-out:hover {
+  color: var(--red);
+}
+@media (max-width: 900px) {
+  /* In the horizontal top bar, keep Sign out inline rather than pushed away. */
+  .nav-item.sign-out {
+    margin-top: 0;
+    margin-left: auto;
+  }
+}
+
 /* Custom scrollbars */
 .pane-body::-webkit-scrollbar,
 .main::-webkit-scrollbar {

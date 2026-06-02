@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { OAuth2Client } from "google-auth-library";
+import { readSecretFile, writeSecretFile } from "@trident/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
@@ -9,8 +10,8 @@ const CREDENTIALS_PATH = path.join(REPO_ROOT, "credentials.json");
 const TOKEN_PATH = path.join(REPO_ROOT, "data", "google-token.json");
 
 export const GOOGLE_SCOPES = [
+  // Read-only least privilege: the tools only ever read mail/drive/calendar.
   "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/calendar.readonly",
 ];
@@ -66,18 +67,13 @@ export function buildOAuthClient(): OAuth2Client {
 }
 
 export function loadSavedToken(): SavedToken | null {
-  if (!fs.existsSync(TOKEN_PATH)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8")) as SavedToken;
-  } catch {
-    return null;
-  }
+  // readSecretFile handles 0600 plaintext (legacy) and AES-256-GCM (when
+  // TRIDENT_TOKEN_KEY is set) transparently. A wrong/missing key throws.
+  return readSecretFile<SavedToken>(TOKEN_PATH);
 }
 
 export function saveToken(token: SavedToken) {
-  const dir = path.dirname(TOKEN_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(TOKEN_PATH, JSON.stringify(token, null, 2), "utf-8");
+  writeSecretFile(TOKEN_PATH, token);
 }
 
 export async function getAuthorizedClient(): Promise<OAuth2Client> {
