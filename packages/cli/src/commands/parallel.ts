@@ -73,7 +73,6 @@ export interface ParallelRunResult {
   id: string;
   prompt: string;
   ais: AIName[];
-  results: AIResponse[];
   responses: SessionRunResponse[];
   started_at: string;
   finished_at: string;
@@ -114,30 +113,27 @@ export async function runParallel(
   const startedAt = new Date().toISOString();
   const runStart = Date.now();
 
-  const responses: SessionRunResponse[] = [];
+  // Pre-sized so responses stay in request order regardless of which AI
+  // finishes first (written by index below, not pushed on completion).
+  const responses: SessionRunResponse[] = new Array(ais.length);
 
   // Per-AI live character counters shown on a single rewrite line. Cleaner
   // than interleaving each AI's tokens to stdout when 3 calls are in flight.
-  const liveChars: Record<string, number> = {};
-  for (const ai of ais) liveChars[ai] = 0;
+  const liveChars: number[] = ais.map(() => 0);
   let liveActive = ais.length;
   const renderLive = () => {
     if (options.quiet) return;
-    const parts = ais.map((ai) => {
+    const parts = ais.map((ai, i) => {
       const color = AI_COLORS[ai] ?? chalk.white;
       const label = AI_LABELS[ai] ?? ai;
-      const status = responses.find((r) => r.ai === ai)
-        ? "✓"
-        : liveChars[ai] > 0
-        ? `${liveChars[ai]}c`
-        : "…";
+      const status = responses[i] ? "✓" : liveChars[i] > 0 ? `${liveChars[i]}c` : "…";
       return color(`${label} ${status}`);
     });
     process.stdout.write(`\r  ${parts.join("  ")}  ${chalk.gray(`(${liveActive} active)`)}     `);
   };
   renderLive();
   const results = await Promise.all(
-    ais.map(async (ai) => {
+    ais.map(async (ai, idx) => {
       const aiStart = Date.now();
       const aiStartedAt = new Date().toISOString();
       const result = await AI_MAP[ai](messages, options.system, {
@@ -145,12 +141,12 @@ export async function runParallel(
         tokens: options.quiet
           ? undefined
           : (chunk) => {
-              liveChars[ai] += chunk.length;
+              liveChars[idx] += chunk.length;
               renderLive();
             },
       });
       const aiFinishedAt = new Date().toISOString();
-      responses.push({
+      responses[idx] = {
         ai,
         content: result.content,
         error: result.error,
@@ -159,7 +155,7 @@ export async function runParallel(
         finished_at: aiFinishedAt,
         model: result.model,
         usage: result.usage,
-      });
+      };
       liveActive -= 1;
       renderLive();
       return result;
@@ -302,7 +298,6 @@ export async function runParallel(
     id: runId,
     prompt,
     ais,
-    results,
     responses,
     started_at: startedAt,
     finished_at: finishedAt,

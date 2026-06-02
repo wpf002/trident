@@ -1,4 +1,4 @@
-import { AIName } from "./clients.js";
+import { AIName } from "./clients-types.js";
 
 export interface ChainPreset {
   order: AIName[];
