@@ -4,15 +4,22 @@ import { fileURLToPath } from "url";
 import chalk from "chalk";
 import cron from "node-cron";
 import dotenv from "dotenv";
-import Database from "better-sqlite3";
 import { nanoid } from "nanoid";
-import { AI_MAP, AI_LABELS, AIMessage, AIName, CHAIN_PRESETS, VALID_AIS } from "@trident/core";
+import {
+  AI_MAP,
+  AI_LABELS,
+  AIMessage,
+  AIName,
+  CHAIN_PRESETS,
+  VALID_AIS,
+  logSessionRun,
+  SessionRunResponse,
+} from "@trident/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
 const SCHEDULES_PATH = path.join(REPO_ROOT, "schedules.json");
 const STATE_PATH = path.join(REPO_ROOT, "data", "scheduler-state.json");
-const DB_PATH = path.join(REPO_ROOT, "data", "trident.db");
 
 dotenv.config({ path: path.join(REPO_ROOT, ".env") });
 
@@ -115,66 +122,7 @@ function saveState(state: SchedulerState) {
   fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), "utf-8");
 }
 
-// ─── DB ──────────────────────────────────────────────────────────────────────
-
-function ensureDb(): Database.Database {
-  const dataDir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS session_runs (
-      id TEXT PRIMARY KEY,
-      mode TEXT NOT NULL,
-      prompt TEXT NOT NULL,
-      project TEXT,
-      ais TEXT NOT NULL,
-      responses TEXT NOT NULL,
-      duration_ms INTEGER NOT NULL,
-      preset TEXT,
-      system_prompt TEXT,
-      metadata TEXT,
-      started_at TEXT NOT NULL,
-      finished_at TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  return db;
-}
-
-interface PersistedRun {
-  id: string;
-  prompt: string;
-  project: string | null;
-  order: AIName[];
-  responses: Array<{ ai: string; content: string; error?: string; duration_ms: number; started_at: string; finished_at: string }>;
-  duration_ms: number;
-  preset: string | null;
-  system_prompt: string | null;
-  metadata: Record<string, unknown> | null;
-  started_at: string;
-  finished_at: string;
-}
-
-function persistRun(db: Database.Database, run: PersistedRun) {
-  db.prepare(`
-    INSERT INTO session_runs
-      (id, mode, prompt, project, ais, responses, duration_ms, preset, system_prompt, metadata, started_at, finished_at)
-    VALUES (?, 'chain', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    run.id,
-    run.prompt,
-    run.project,
-    JSON.stringify(run.order),
-    JSON.stringify(run.responses),
-    run.duration_ms,
-    run.preset,
-    run.system_prompt,
-    run.metadata ? JSON.stringify(run.metadata) : null,
-    run.started_at,
-    run.finished_at
-  );
-}
+// Session persistence goes through @trident/core's shared store (logSessionRun).
 
 // ─── Chain runner ────────────────────────────────────────────────────────────
 
@@ -184,7 +132,7 @@ export interface ScheduleRunResult {
   prompt: string;
   order: AIName[];
   finalContent: string;
-  responses: PersistedRun["responses"];
+  responses: SessionRunResponse[];
   duration_ms: number;
   started_at: string;
   finished_at: string;
@@ -208,7 +156,7 @@ export async function runScheduledJob(
   const startedAt = new Date().toISOString();
   const runStart = Date.now();
 
-  const responses: PersistedRun["responses"] = [];
+  const responses: SessionRunResponse[] = [];
   const conversation: AIMessage[] = [{ role: "user", content: schedule.prompt }];
   let finalContent = "";
 
@@ -257,8 +205,6 @@ export async function runScheduledJob(
   const finishedAt = new Date().toISOString();
   const durationMs = Date.now() - runStart;
 
-  const db = ensureDb();
-
   if (schedule.output) {
     const absOutput = path.isAbsolute(schedule.output)
       ? schedule.output
@@ -271,11 +217,12 @@ export async function runScheduledJob(
   }
 
   try {
-    persistRun(db, {
+    logSessionRun({
       id: runId,
+      mode: "chain",
       prompt: schedule.prompt,
       project: null,
-      order,
+      ais: order,
       responses,
       duration_ms: durationMs,
       preset: schedule.preset ?? null,
@@ -308,7 +255,7 @@ function formatRunMarkdown(
   finishedAt: string,
   durationMs: number,
   order: AIName[],
-  responses: PersistedRun["responses"]
+  responses: SessionRunResponse[]
 ): string {
   const lines: string[] = [];
   lines.push(`# Trident — Scheduled Run: ${schedule.id}`);

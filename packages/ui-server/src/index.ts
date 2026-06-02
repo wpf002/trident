@@ -9,7 +9,12 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { nanoid } from "nanoid";
-import { listSessions, getSession, insertSession, clearSessions } from "./db.js";
+import {
+  listSessionSummaries,
+  getSessionRun,
+  logSessionRun,
+  clearSessionRuns,
+} from "@trident/core";
 import {
   AI_MAP,
   AIMessage,
@@ -155,17 +160,18 @@ app.get("/api/auth/check", (_req: Request, res: Response) => {
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
 app.get("/api/sessions", (_req: Request, res: Response) => {
-  res.json({ sessions: listSessions(200) });
+  // Summaries omit response bodies — the list view only needs row headers.
+  res.json({ sessions: listSessionSummaries({ limit: 200 }) });
 });
 
 app.delete("/api/sessions", (req: Request, res: Response) => {
-  const removed = clearSessions();
+  const removed = clearSessionRuns();
   audit("sessions_cleared", req, { removed });
   res.json({ removed });
 });
 
 app.get("/api/sessions/:id", (req: Request, res: Response) => {
-  const session = getSession(req.params.id);
+  const session = getSessionRun(req.params.id);
   if (!session) {
     res.status(404).json({ error: "not_found" });
     return;
@@ -402,7 +408,7 @@ app.post("/api/query/stream", queryLimiter, async (req: Request, res: Response) 
   const durationMs = Date.now() - runStart;
 
   try {
-    insertSession({
+    logSessionRun({
       id: runId,
       mode: parsed.mode,
       prompt: parsed.prompt,
