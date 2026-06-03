@@ -1,7 +1,10 @@
 [phases.install]
 cmds = [
   "npm install --include=optional",
-  "npm install --no-save --workspace=packages/ui @rollup/rollup-linux-x64-gnu",
+  # Vite 8 bundles the rolldown bundler (not rollup). Work around the npm
+  # optional-deps bug (npm/cli#4828) by installing the Linux native binding
+  # explicitly; keep this version in sync with `rolldown` in package-lock.json.
+  "npm install --no-save --workspace=packages/ui @rolldown/binding-linux-x64-gnu@1.0.3",
 ]
 
 [phases.build]
