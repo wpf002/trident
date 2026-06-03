@@ -1,10 +1,11 @@
 [phases.install]
 cmds = [
+  # The committed package-lock.json is generated on macOS; npm's optional-deps
+  # bug (npm/cli#4828) then omits the Linux native bindings that vite 8 pulls in
+  # (rolldown, lightningcss, …). Drop the platform-specific lockfile so npm
+  # resolves the correct Linux optional deps fresh on the build host.
+  "rm -f package-lock.json",
   "npm install --include=optional",
-  # Vite 8 bundles the rolldown bundler (not rollup). Work around the npm
-  # optional-deps bug (npm/cli#4828) by installing the Linux native binding
-  # explicitly; keep this version in sync with `rolldown` in package-lock.json.
-  "npm install --no-save --workspace=packages/ui @rolldown/binding-linux-x64-gnu@1.0.3",
 ]
 
 [phases.build]
