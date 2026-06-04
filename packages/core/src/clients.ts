@@ -30,9 +30,22 @@ export interface CallOptions {
   tier?: ModelTier;
   /** Override the resolved model name entirely. Wins over `tier`. */
   model?: string;
-  /** Override max output tokens. Default: 4096 (256 for utility). */
+  /**
+   * Override max output tokens. When unset, defaults to a generous per-tier
+   * value (see resolveMaxTokens) so long answers aren't truncated mid-sentence.
+   * Set TRIDENT_MAX_OUTPUT_TOKENS to change the global default.
+   */
   maxTokens?: number;
 }
+
+// Per-provider hard ceiling on output tokens. Requests are clamped to these so
+// a high default/override never trips a provider "max_tokens too large" error.
+// Conservative values that current flagship models all support.
+const MAX_OUTPUT_TOKENS: Record<AIName, number> = {
+  claude: 16384,
+  gpt: 16384,
+  perplexity: 8192,
+};
 
 /** Back-compat alias — older code passed only `{ tokens, signal }`. */
 export type StreamOptions = CallOptions;
@@ -42,9 +55,23 @@ function resolveModel(ai: AIName, opts: CallOptions | undefined): string {
   return modelFor(ai, opts?.tier ?? "main");
 }
 
-function defaultMaxTokens(opts: CallOptions | undefined): number {
-  if (typeof opts?.maxTokens === "number" && opts.maxTokens > 0) return opts.maxTokens;
-  return opts?.tier === "utility" ? 1024 : 4096;
+function resolveMaxTokens(ai: AIName, opts: CallOptions | undefined): number {
+  let n: number;
+  if (typeof opts?.maxTokens === "number" && opts.maxTokens > 0) {
+    // Explicit per-call override wins.
+    n = opts.maxTokens;
+  } else {
+    const envDefault = Number.parseInt(process.env.TRIDENT_MAX_OUTPUT_TOKENS ?? "", 10);
+    if (Number.isFinite(envDefault) && envDefault > 0) {
+      n = envDefault;
+    } else {
+      // Generous defaults so full-length answers don't get cut off. Utility is
+      // for internal/structured calls (routing, diff, scoring) — still ample.
+      n = opts?.tier === "utility" ? 4096 : 16384;
+    }
+  }
+  // Never exceed what the provider allows.
+  return Math.min(n, MAX_OUTPUT_TOKENS[ai]);
 }
 
 // ─── Claude ──────────────────────────────────────────────────────────────────
@@ -61,7 +88,7 @@ export async function callClaude(
   }
 
   const model = resolveModel("claude", options);
-  const max_tokens = defaultMaxTokens(options);
+  const max_tokens = resolveMaxTokens("claude", options);
   const apiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
 
   try {
@@ -138,7 +165,7 @@ async function callOpenAICompatible(
   }
 
   const model = resolveModel(ai, options);
-  const max_tokens = defaultMaxTokens(options);
+  const max_tokens = resolveMaxTokens(ai, options);
 
   try {
     const client = new OpenAI({ apiKey, baseURL });
