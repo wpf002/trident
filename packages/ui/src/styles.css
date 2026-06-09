@@ -1059,7 +1059,9 @@ a:hover {
   display: none;
 }
 
-/* ─── Mobile (≤900px) ─────────────────────────────────────────────────────── */
+/* ─── Tablet & compact (≤900px) ───────────────────────────────────────────── */
+/* Sidebar collapses to a top bar to reclaim width, but History stays a
+   side-by-side master/detail down to 700px (phones stack it, below). */
 
 @media (max-width: 900px) {
   .app {
@@ -1141,7 +1143,21 @@ a:hover {
     padding: 14px;
   }
 
-  /* History split panes -> stacked */
+  /* History keeps its side-by-side master/detail on tablets. Tablet is
+     narrower than desktop, so the list is a fixed-ish column and the detail
+     (responses) pane flexes to fill; height reclaims space from the top bar. */
+  .split-panes {
+    grid-template-columns: minmax(200px, 300px) 1fr;
+    height: calc(100vh - 190px);
+    min-height: 460px;
+  }
+}
+
+/* ─── Phones (≤700px) ─────────────────────────────────────────────────────── */
+/* Below tablet width the History master/detail stacks, and a selected session
+   takes over the screen with a back button. */
+
+@media (max-width: 700px) {
   .split-panes {
     display: flex;
     flex-direction: column;
@@ -1178,9 +1194,8 @@ a:hover {
     margin-left: 72px;
   }
 
-  /* When a session is selected on mobile, show only the detail pane
-     and surface a "back" control. SessionsView toggles `mobile-detail-open`
-     on the .split-panes container. */
+  /* When a session is selected on a phone, show only the detail pane and
+     surface a "back" control. SessionsView toggles `mobile-detail-open`. */
   .split-panes.mobile-detail-open .pane.list-pane {
     display: none;
   }
