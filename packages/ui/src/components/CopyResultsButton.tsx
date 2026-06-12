@@ -61,7 +61,7 @@ export function CopyResultsButton({
 
   return (
     <button
-      className={"secondary" + (className ? " " + className : "")}
+      className={"primary" + (className ? " " + className : "")}
       onClick={onClick}
       disabled={responses.length === 0}
     >
