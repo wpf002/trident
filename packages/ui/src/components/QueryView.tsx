@@ -3,6 +3,7 @@ import { aiLabel, AIName } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
 import { formatDuration } from "../lib/format.js";
 import { apiFetch } from "../lib/api.js";
+import { CopyResultsButton } from "./CopyResultsButton.js";
 
 interface StreamResponse {
   ai: AIName;
@@ -17,6 +18,7 @@ interface StreamResponse {
 
 interface RunState {
   id: string;
+  prompt: string;
   status: "running" | "done";
   order: AIName[];
   startedAt: string;
@@ -133,6 +135,7 @@ export function QueryView() {
 
     setRun({
       id: "(pending)",
+      prompt,
       status: "running",
       order: [],
       startedAt: new Date().toISOString(),
@@ -380,6 +383,9 @@ export function QueryView() {
                 "Ask"
               )}
             </button>
+            {run?.status === "done" && run.responses.length > 0 && (
+              <CopyResultsButton prompt={run.prompt} responses={run.responses} />
+            )}
             {error && <span className="error">{error}</span>}
           </div>
         </div>

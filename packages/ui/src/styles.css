@@ -888,6 +888,17 @@ th {
   font-style: italic;
 }
 
+/* Pinned footer at the bottom of a pane (e.g. Copy Results in session detail). */
+.pane-footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: linear-gradient(0deg, var(--bg-elev-2) 0%, transparent 100%);
+}
+
 /* ─── Collapsible AI response (sessions detail) ───────────────────────────── */
 
 details.ai-block {

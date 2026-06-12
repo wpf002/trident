@@ -3,6 +3,7 @@ import { SessionRun, aiLabel } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
 import { formatDuration } from "../lib/format.js";
 import { apiFetch } from "../lib/api.js";
+import { CopyResultsButton } from "./CopyResultsButton.js";
 
 function modeLabel(mode: string): string {
   return mode.charAt(0).toUpperCase() + mode.slice(1);
@@ -278,6 +279,9 @@ function SessionDetail({ session, onBack }: { session: SessionRun; onBack: () =>
             ))}
           </section>
         </div>
+      </div>
+      <div className="pane-footer">
+        <CopyResultsButton prompt={session.prompt} responses={session.responses} />
       </div>
     </>
   );
