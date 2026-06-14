@@ -14,6 +14,7 @@ import { fileTools, handleFileTool } from "./tools/files.js";
 import { apiTools, handleApiTool } from "./tools/api.js";
 import { perplexityTools, handlePerplexityTool } from "./tools/perplexity.js";
 import { googleTools, handleGoogleTool } from "./tools/google.js";
+import { prophetTools, handleProphetTool } from "./tools/prophet.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
@@ -24,6 +25,7 @@ const allTools = [
   ...apiTools,
   ...perplexityTools,
   ...googleTools,
+  ...prophetTools,
 ];
 
 const server = new Server(
@@ -70,6 +72,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       result = await handlePerplexityTool(name, safeArgs);
     } else if (googleTools.some((t) => t.name === name)) {
       result = await handleGoogleTool(name, safeArgs);
+    } else if (prophetTools.some((t) => t.name === name)) {
+      result = await handleProphetTool(name, safeArgs);
     } else {
       throw new Error(`Unknown tool: ${name}`);
     }
