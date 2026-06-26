@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { aiLabel, AIName } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
-import { formatDuration } from "../lib/format.js";
+import { formatDuration, prettyPreset } from "../lib/format.js";
 import { apiFetch } from "../lib/api.js";
 import { CopyResultsButton } from "./CopyResultsButton.js";
+import { Sources } from "./Sources.js";
 
 interface StreamResponse {
   ai: AIName;
@@ -14,6 +15,7 @@ interface StreamResponse {
   finished_at: string;
   step?: number;
   total?: number;
+  citations?: string[];
 }
 
 interface RunState {
@@ -61,6 +63,7 @@ interface RawResponseEvent {
   finished_at?: string;
   step?: number;
   total?: number;
+  citations?: string[];
 }
 
 interface StartEvent {
@@ -202,6 +205,7 @@ export function QueryView() {
                   finished_at: d.finished_at ?? "",
                   step: d.step,
                   total: d.total,
+                  citations: d.citations,
                 },
               ],
             };
@@ -329,7 +333,7 @@ export function QueryView() {
                   <option value="">Custom order</option>
                   {PRESETS.map((p) => (
                     <option key={p} value={p}>
-                      {p}
+                      {prettyPreset(p)}
                     </option>
                   ))}
                 </select>
@@ -426,7 +430,10 @@ export function QueryView() {
               {r.error ? (
                 <div className="error">{r.error}</div>
               ) : (
-                <MarkdownView text={r.content} />
+                <>
+                  <MarkdownView text={r.content} />
+                  <Sources citations={r.citations} />
+                </>
               )}
             </div>
           ))}

@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useState } from "react";
 import { SessionRun, aiLabel } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
-import { formatDuration } from "../lib/format.js";
+import { formatDuration, prettyPreset } from "../lib/format.js";
 import { apiFetch } from "../lib/api.js";
 import { CopyResultsButton } from "./CopyResultsButton.js";
+import { Sources } from "./Sources.js";
 
 function modeLabel(mode: string): string {
   return mode.charAt(0).toUpperCase() + mode.slice(1);
@@ -208,7 +209,7 @@ function SessionListRow({
       <div className="history-row-body">
         <div className="row" style={{ gap: 6, marginBottom: 6 }}>
           <span className={"tag " + session.mode}>{modeLabel(session.mode)}</span>
-          {session.preset && <span className="tag">{session.preset}</span>}
+          {session.preset && <span className="tag">{prettyPreset(session.preset)}</span>}
           {session.project && <span className="tag">{session.project}</span>}
         </div>
         <div className="history-row-prompt">
@@ -236,7 +237,7 @@ function SessionDetail({ session, onBack }: { session: SessionRun; onBack: () =>
             ← Back
           </button>
           <span className={"tag " + session.mode}>{modeLabel(session.mode)}</span>
-          {session.preset && <span className="tag">{session.preset}</span>}
+          {session.preset && <span className="tag">{prettyPreset(session.preset)}</span>}
           {session.project && <span className="tag">{session.project}</span>}
         </div>
         <span className="muted tiny">{formatDuration(session.duration_ms)} total</span>
@@ -272,7 +273,10 @@ function SessionDetail({ session, onBack }: { session: SessionRun; onBack: () =>
                   {r.error ? (
                     <div className="error">{r.error}</div>
                   ) : (
-                    <MarkdownView text={r.content} />
+                    <>
+                      <MarkdownView text={r.content} />
+                      <Sources citations={r.citations} />
+                    </>
                   )}
                 </div>
               </details>

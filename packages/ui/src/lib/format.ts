@@ -5,3 +5,13 @@ export function formatDuration(ms: number): string {
   const seconds = ms / 1000;
   return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
 }
+
+// Turn a chain preset slug into a readable label:
+// "research-analyze-summarize" -> "Research → Analyze → Summarize".
+export function prettyPreset(slug: string): string {
+  if (!slug) return slug;
+  return slug
+    .split("-")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" → ");
+}
