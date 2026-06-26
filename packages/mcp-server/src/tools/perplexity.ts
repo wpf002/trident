@@ -2,7 +2,7 @@ export const perplexityTools = [
   {
     name: "perplexity_search",
     description:
-      "Run a query against the Perplexity online model (llama-3.1-sonar-large-128k-online). " +
+      "Run a query against the Perplexity online model (sonar). " +
       "Use this when you (Claude or ChatGPT) need live, web-grounded information with citations. " +
       "Returns the assistant's response text plus any citations Perplexity surfaced.",
     inputSchema: {
@@ -73,7 +73,7 @@ export async function handlePerplexityTool(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "llama-3.1-sonar-large-128k-online",
+        model: "sonar",
         messages,
         max_tokens: maxTokens,
       }),
@@ -102,6 +102,6 @@ export async function handlePerplexityTool(
   return JSON.stringify({
     content,
     citations,
-    model: "llama-3.1-sonar-large-128k-online",
+    model: "sonar",
   });
 }
