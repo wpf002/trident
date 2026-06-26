@@ -1,10 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { aiLabel, AIName } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
 import { formatDuration, prettyPreset } from "../lib/format.js";
 import { apiFetch } from "../lib/api.js";
 import { CopyResultsButton } from "./CopyResultsButton.js";
 import { Sources } from "./Sources.js";
+import { InteractiveChain } from "./InteractiveChain.js";
+
+interface ChainPreset {
+  order: AIName[];
+  systemPrompts?: Partial<Record<AIName, string>>;
+}
+interface ChainRun {
+  prompt: string;
+  order: AIName[];
+  systemPrompts: Partial<Record<AIName, string>>;
+  system?: string;
+  tier: Tier;
+}
 
 interface StreamResponse {
   ai: AIName;
@@ -83,6 +96,15 @@ export function QueryView() {
   const [tier, setTier] = useState<Tier>("main");
   const [run, setRun] = useState<RunState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [presets, setPresets] = useState<Record<string, ChainPreset>>({});
+  const [chainRun, setChainRun] = useState<ChainRun | null>(null);
+
+  useEffect(() => {
+    apiFetch("/api/presets")
+      .then((r) => (r.ok ? r.json() : { presets: {} }))
+      .then((d) => setPresets(d.presets ?? {}))
+      .catch(() => {});
+  }, []);
 
   const toggleAi = (ai: AIName) => {
     setAis((curr) => (curr.includes(ai) ? curr.filter((a) => a !== ai) : [...curr, ai]));
@@ -92,6 +114,7 @@ export function QueryView() {
     setPrompt("");
     setSystem("");
     setRun(null);
+    setChainRun(null);
     setError(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -102,20 +125,39 @@ export function QueryView() {
       setError("Type something to ask first.");
       return;
     }
+
+    // Chain mode runs interactively (step-by-step, pausable) on the client.
+    if (mode === "chain") {
+      const cfg = preset && presets[preset] ? presets[preset] : null;
+      const order = cfg ? cfg.order : ais;
+      if (!order || order.length === 0) {
+        setError("Pick at least one AI for the chain.");
+        return;
+      }
+      setChainRun({
+        prompt,
+        order,
+        systemPrompts: cfg?.systemPrompts ?? {},
+        system: system || undefined,
+        tier,
+      });
+      return;
+    }
+
     if (mode === "parallel" && ais.length === 0) {
       setError("Pick at least one AI to ask.");
       return;
     }
 
+    // Chain mode already returned above, so this path is always parallel.
     const body = {
       prompt,
-      mode,
+      mode: "parallel" as const,
       ais,
-      preset: mode === "chain" && preset ? preset : undefined,
       system: system || undefined,
       tier,
-      diff: mode === "parallel" ? true : undefined,
-      score: mode === "parallel" ? true : undefined,
+      diff: true,
+      score: true,
     };
 
     let response: Response;
@@ -375,7 +417,7 @@ export function QueryView() {
             <button
               className="primary"
               onClick={run?.status === "done" ? newChat : start}
-              disabled={run?.status === "running"}
+              disabled={run?.status === "running" || chainRun !== null}
             >
               {run?.status === "running" ? (
                 <span className="row" style={{ gap: 8 }}>
@@ -383,6 +425,8 @@ export function QueryView() {
                 </span>
               ) : run?.status === "done" ? (
                 "New Chat"
+              ) : mode === "chain" ? (
+                "Start chain"
               ) : (
                 "Ask"
               )}
@@ -394,6 +438,17 @@ export function QueryView() {
           </div>
         </div>
       </div>
+
+      {chainRun && (
+        <InteractiveChain
+          prompt={chainRun.prompt}
+          order={chainRun.order}
+          systemPrompts={chainRun.systemPrompts}
+          system={chainRun.system}
+          tier={chainRun.tier}
+          onNewChat={newChat}
+        />
+      )}
 
       {run && (
         <div style={{ marginTop: 20 }}>

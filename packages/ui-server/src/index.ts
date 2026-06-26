@@ -162,6 +162,12 @@ app.get("/api/auth/check", (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// Chain presets (order + per-step system prompts) so the client can drive an
+// interactive, step-by-step chain.
+app.get("/api/presets", (_req: Request, res: Response) => {
+  res.json({ presets: CHAIN_PRESETS });
+});
+
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
 app.get("/api/sessions", (_req: Request, res: Response) => {
@@ -402,6 +408,89 @@ app.post("/api/query/stream", queryLimiter, async (req: Request, res: Response) 
   }
 
   send("done", { id: runId, duration_ms: durationMs, finished_at: finishedAt });
+  res.end();
+});
+
+// ─── Single chat turn (stateless) ────────────────────────────────────────────
+// Runs ONE AI's response to a supplied conversation, streaming tokens. The
+// client orchestrates interactive / step-by-step chains by calling this per
+// turn and inserting its own user messages (feedback, clarifying answers)
+// between turns. Stateless — the full conversation is passed on every call.
+
+interface TurnBody {
+  messages: AIMessage[];
+  ai: AIName;
+  system?: string;
+  tier?: ModelTier;
+}
+
+function parseTurn(body: unknown): TurnBody | { error: string } {
+  if (!body || typeof body !== "object") return { error: "body must be JSON" };
+  const b = body as Record<string, unknown>;
+  if (typeof b.ai !== "string" || !VALID_AIS.has(b.ai as AIName)) {
+    return { error: `invalid ai: ${String(b.ai)}` };
+  }
+  if (!Array.isArray(b.messages) || b.messages.length === 0) {
+    return { error: "messages must be a non-empty array" };
+  }
+  const messages: AIMessage[] = [];
+  for (const m of b.messages) {
+    if (!m || typeof m !== "object") return { error: "each message must be an object" };
+    const mm = m as Record<string, unknown>;
+    if (mm.role !== "user" && mm.role !== "assistant") {
+      return { error: "message.role must be 'user' or 'assistant'" };
+    }
+    if (typeof mm.content !== "string") return { error: "message.content must be a string" };
+    messages.push({ role: mm.role, content: mm.content });
+  }
+  if (b.system !== undefined && typeof b.system !== "string") return { error: "system must be a string" };
+  if (b.tier !== undefined && (typeof b.tier !== "string" || !VALID_TIERS.has(b.tier))) {
+    return { error: "tier must be one of: premium, main, utility" };
+  }
+  return {
+    messages,
+    ai: b.ai as AIName,
+    system: b.system as string | undefined,
+    tier: b.tier as ModelTier | undefined,
+  };
+}
+
+app.post("/api/chat/turn", queryLimiter, async (req: Request, res: Response) => {
+  const parsed = parseTurn(req.body);
+  if ("error" in parsed) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  audit("turn", req, { ai: parsed.ai, tier: parsed.tier ?? "main", history_len: parsed.messages.length });
+  send("start", { ai: parsed.ai, started_at: new Date().toISOString() });
+
+  const result = await AI_MAP[parsed.ai](parsed.messages, parsed.system, {
+    tier: parsed.tier ?? "main",
+    tokens: (chunk) => send("token", { delta: chunk }),
+  });
+
+  send("done", {
+    ai: parsed.ai,
+    content: result.content,
+    error: result.error,
+    duration_ms: result.duration_ms,
+    model: result.model,
+    usage: result.usage,
+    citations: result.citations,
+    finished_at: new Date().toISOString(),
+  });
   res.end();
 });
 

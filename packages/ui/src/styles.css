@@ -327,6 +327,18 @@ input[type="checkbox"] {
   margin-top: 12px;
 }
 
+/* User feedback / follow-up turn inside an interactive chain. */
+.chain-feedback {
+  border-left: 3px solid var(--blue);
+  background: var(--blue-soft);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 10px 14px;
+}
+.chain-feedback > .label {
+  margin-bottom: 4px;
+  color: var(--blue-bright);
+}
+
 /* ─── Layout helpers ──────────────────────────────────────────────────────── */
 
 .row {
