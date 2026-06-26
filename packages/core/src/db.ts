@@ -58,6 +58,7 @@ export interface SessionRunResponse {
   finished_at: string;
   model?: string;
   usage?: { input_tokens: number; output_tokens: number };
+  citations?: string[];
 }
 
 export interface SessionRunRecord {

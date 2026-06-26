@@ -21,4 +21,6 @@ export interface AIResponse {
   duration_ms: number;
   model?: string;
   usage?: TokenUsage;
+  /** Source URLs returned by providers that ground answers in the web (e.g. Perplexity). */
+  citations?: string[];
 }

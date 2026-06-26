@@ -74,6 +74,25 @@ function resolveMaxTokens(ai: AIName, opts: CallOptions | undefined): number {
   return Math.min(n, MAX_OUTPUT_TOKENS[ai]);
 }
 
+// Pull source URLs out of a provider response/chunk. Perplexity returns a
+// non-standard top-level `citations: string[]` (older) or `search_results:
+// [{url}]` (newer); other providers return neither.
+function extractCitations(obj: unknown): string[] | undefined {
+  const o = obj as Record<string, unknown> | null;
+  if (!o || typeof o !== "object") return undefined;
+  if (Array.isArray(o.citations)) {
+    const urls = o.citations.filter((c): c is string => typeof c === "string");
+    if (urls.length) return urls;
+  }
+  if (Array.isArray(o.search_results)) {
+    const urls = (o.search_results as unknown[])
+      .map((s) => (s && typeof s === "object" ? (s as Record<string, unknown>).url : undefined))
+      .filter((u): u is string => typeof u === "string");
+    if (urls.length) return urls;
+  }
+  return undefined;
+}
+
 // ─── Claude ──────────────────────────────────────────────────────────────────
 
 export async function callClaude(
@@ -185,6 +204,7 @@ async function callOpenAICompatible(
       });
       let collected = "";
       let usage: { input_tokens: number; output_tokens: number } | undefined;
+      let citations: string[] | undefined;
       for await (const chunk of streamResp) {
         const delta = chunk.choices[0]?.delta?.content ?? "";
         if (delta) {
@@ -197,8 +217,12 @@ async function callOpenAICompatible(
             output_tokens: chunk.usage.completion_tokens,
           };
         }
+        // Perplexity attaches `citations` (a non-standard top-level field) to
+        // its stream chunks; keep the latest non-empty list.
+        const c = extractCitations(chunk);
+        if (c) citations = c;
       }
-      return { ai, content: collected, duration_ms: Date.now() - start, model, usage };
+      return { ai, content: collected, duration_ms: Date.now() - start, model, usage, citations };
     }
 
     const response = await client.chat.completions.create({
@@ -211,6 +235,7 @@ async function callOpenAICompatible(
       content: response.choices[0]?.message?.content ?? "",
       duration_ms: Date.now() - start,
       model,
+      citations: extractCitations(response),
       usage: response.usage
         ? { input_tokens: response.usage.prompt_tokens, output_tokens: response.usage.completion_tokens }
         : undefined,

@@ -386,6 +386,7 @@ app.post("/api/query/stream", queryLimiter, async (req: Request, res: Response) 
         finished_at: r.finished_at,
         model: r.model,
         usage: r.usage,
+        citations: r.citations,
       })),
       duration_ms: durationMs,
       preset: parsed.preset ?? null,
