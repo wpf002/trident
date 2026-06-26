@@ -175,6 +175,38 @@ app.get("/api/sessions", (_req: Request, res: Response) => {
   res.json({ sessions: listSessionSummaries({ limit: 200 }) });
 });
 
+// Upsert a session. Used by the interactive chain to save (and re-save as turns
+// accumulate). Returns the id so the client can keep updating the same row.
+app.post("/api/sessions", (req: Request, res: Response) => {
+  const b = req.body;
+  if (!b || typeof b !== "object" || typeof b.prompt !== "string") {
+    res.status(400).json({ error: "prompt is required" });
+    return;
+  }
+  const id: string = typeof b.id === "string" && b.id ? b.id : nanoid(12);
+  const now = new Date().toISOString();
+  try {
+    logSessionRun({
+      id,
+      mode: b.mode === "chain" ? "chain" : "parallel",
+      prompt: b.prompt,
+      project: null,
+      ais: Array.isArray(b.ais) ? b.ais.map(String) : [],
+      responses: Array.isArray(b.responses) ? b.responses : [],
+      duration_ms: typeof b.duration_ms === "number" && Number.isFinite(b.duration_ms) ? b.duration_ms : 0,
+      preset: typeof b.preset === "string" ? b.preset : null,
+      system_prompt: typeof b.system_prompt === "string" ? b.system_prompt : null,
+      metadata: b.metadata && typeof b.metadata === "object" ? b.metadata : null,
+      started_at: typeof b.started_at === "string" ? b.started_at : now,
+      finished_at: typeof b.finished_at === "string" ? b.finished_at : now,
+    });
+    res.json({ id });
+  } catch (err) {
+    console.error("[error] POST /api/sessions:", err);
+    res.status(500).json({ error: "internal_error" });
+  }
+});
+
 app.delete("/api/sessions", (req: Request, res: Response) => {
   const removed = clearSessionRuns();
   audit("sessions_cleared", req, { removed });

@@ -130,10 +130,25 @@ function parseRow(row: SessionRunRow): SessionRunRecord {
 
 export function logSessionRun(run: SessionRunInput): void {
   const db = getDb();
+  // Upsert by id: one-shot runs use a fresh id (plain insert); interactive
+  // chains re-save the same id as turns accumulate. ON CONFLICT preserves the
+  // original created_at instead of resetting it.
   db.prepare(`
     INSERT INTO session_runs
       (id, mode, prompt, project, ais, responses, duration_ms, preset, system_prompt, metadata, started_at, finished_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      mode = excluded.mode,
+      prompt = excluded.prompt,
+      project = excluded.project,
+      ais = excluded.ais,
+      responses = excluded.responses,
+      duration_ms = excluded.duration_ms,
+      preset = excluded.preset,
+      system_prompt = excluded.system_prompt,
+      metadata = excluded.metadata,
+      started_at = excluded.started_at,
+      finished_at = excluded.finished_at
   `).run(
     run.id,
     run.mode,
