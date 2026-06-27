@@ -100,6 +100,18 @@ export function SessionsView({ active = true }: { active?: boolean }) {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Delete this session? This can't be undone.")) return;
+    try {
+      const res = await apiFetch(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`delete failed: ${res.status}`);
+      setSessions((curr) => curr.filter((s) => s.id !== id));
+      setSelected((curr) => (curr?.id === id ? null : curr));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   return (
     <div>
       <header className="page-header">
@@ -156,6 +168,7 @@ export function SessionsView({ active = true }: { active?: boolean }) {
                         session={s}
                         active={selected?.id === s.id}
                         onClick={() => handleSelect(s.id)}
+                        onDelete={() => handleDelete(s.id)}
                       />
                     </Fragment>
                   ))}
@@ -189,35 +202,50 @@ function SessionListRow({
   session,
   active,
   onClick,
+  onDelete,
 }: {
   session: SessionRun;
   active: boolean;
   onClick: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={"history-row" + (active ? " active" : "")}
-    >
-      <div className="history-row-time">
-        <div className="history-row-time-main">{formatTimeOnly(session.created_at)}</div>
-        <div className="history-row-time-sub">{formatDuration(session.duration_ms)}</div>
-      </div>
-      <div className="history-row-marker" aria-hidden="true">
-        <span className="history-row-dot" />
-      </div>
-      <div className="history-row-body">
-        <div className="row" style={{ gap: 6, marginBottom: 6 }}>
-          <span className={"tag " + session.mode}>{modeLabel(session.mode)}</span>
-          {session.preset && <span className="tag">{prettyPreset(session.preset)}</span>}
-          {session.project && <span className="tag">{session.project}</span>}
+    <div className="history-row-wrap">
+      <button
+        onClick={onClick}
+        className={"history-row" + (active ? " active" : "")}
+      >
+        <div className="history-row-time">
+          <div className="history-row-time-main">{formatTimeOnly(session.created_at)}</div>
+          <div className="history-row-time-sub">{formatDuration(session.duration_ms)}</div>
         </div>
-        <div className="history-row-prompt">
-          {session.prompt.slice(0, 110)}
-          {session.prompt.length > 110 ? "…" : ""}
+        <div className="history-row-marker" aria-hidden="true">
+          <span className="history-row-dot" />
         </div>
-      </div>
-    </button>
+        <div className="history-row-body">
+          <div className="row" style={{ gap: 6, marginBottom: 6 }}>
+            <span className={"tag " + session.mode}>{modeLabel(session.mode)}</span>
+            {session.preset && <span className="tag">{prettyPreset(session.preset)}</span>}
+            {session.project && <span className="tag">{session.project}</span>}
+          </div>
+          <div className="history-row-prompt">
+            {session.prompt.slice(0, 110)}
+            {session.prompt.length > 110 ? "…" : ""}
+          </div>
+        </div>
+      </button>
+      <button
+        className="history-row-delete"
+        aria-label="Delete session"
+        title="Delete session"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+      >
+        ✕
+      </button>
+    </div>
   );
 }
 

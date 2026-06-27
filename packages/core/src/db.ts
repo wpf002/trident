@@ -169,6 +169,10 @@ export function clearSessionRuns(): number {
   return getDb().prepare("DELETE FROM session_runs").run().changes;
 }
 
+export function deleteSessionRun(id: string): number {
+  return getDb().prepare("DELETE FROM session_runs WHERE id = ?").run(id).changes;
+}
+
 // ─── Reads ───────────────────────────────────────────────────────────────────
 
 interface ListOptions {

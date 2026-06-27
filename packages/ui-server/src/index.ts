@@ -14,6 +14,7 @@ import {
   getSessionRun,
   logSessionRun,
   clearSessionRuns,
+  deleteSessionRun,
   aiLabel,
   formatResponsesForSynthesis,
   parseConfidenceReport,
@@ -220,6 +221,12 @@ app.get("/api/sessions/:id", (req: Request, res: Response) => {
     return;
   }
   res.json({ session });
+});
+
+app.delete("/api/sessions/:id", (req: Request, res: Response) => {
+  const removed = deleteSessionRun(req.params.id);
+  audit("session_deleted", req, { id: req.params.id, removed });
+  res.json({ removed });
 });
 
 // ─── Query (SSE) ─────────────────────────────────────────────────────────────
