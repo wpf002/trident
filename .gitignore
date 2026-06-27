@@ -13,3 +13,4 @@ credentials.json
 *.js.map
 *.d.ts
 .DS_Store
+.claude/launch.json
