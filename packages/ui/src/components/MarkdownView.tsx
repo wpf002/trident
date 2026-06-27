@@ -17,13 +17,27 @@ function normalizeMath(input: string): string {
   );
 }
 
+// Perplexity emits messy markdown: numbered ATX headings with no space after
+// the hashes ("##1." — not a valid heading, so it renders literally) and dense
+// inline citation markers ("[1][2][3]"). Clean both up; the Sources list under
+// the answer already carries the references.
+function cleanPerplexity(input: string): string {
+  return input
+    .replace(/\[\d+\]/g, "") // drop inline [1][2][3] citation markers
+    .replace(/[ \t]{2,}/g, " ") // collapse the double-spaces that leaves
+    .replace(/^(#{1,6})(?=[A-Za-z0-9])/gm, "$1 "); // space after heading hashes
+}
+
 interface Props {
   text: string;
   /** Optional className for the wrapper. */
   className?: string;
+  /** Apply Perplexity-specific markdown cleanup (heading spacing, citations). */
+  perplexity?: boolean;
 }
 
-export function MarkdownView({ text, className }: Props) {
+export function MarkdownView({ text, className, perplexity }: Props) {
+  const cleaned = perplexity ? cleanPerplexity(text) : text;
   return (
     <div className={"markdown-body " + (className ?? "")}>
       <ReactMarkdown
@@ -38,7 +52,7 @@ export function MarkdownView({ text, className }: Props) {
           ),
         }}
       >
-        {normalizeMath(text)}
+        {normalizeMath(cleaned)}
       </ReactMarkdown>
     </div>
   );

@@ -185,8 +185,9 @@ export function InteractiveChain({
 
   const submitClarify = () => {
     const ans = clarifyAnswer.trim();
-    const history = ans ? [...messages, { role: "user" as const, content: ans }] : messages;
-    if (ans) setMessages(history);
+    // The conversation must end with a user message (Claude rejects otherwise),
+    // so always append one — the answer, or a hidden "go ahead" if skipped.
+    const history: ApiMessage[] = [...messages, { role: "user", content: ans || "Go ahead with your best answer." }];
     const pre: Turn[] = ans ? [{ kind: "feedback", content: ans }] : [];
     setClarifyAnswer("");
     setAwaitingClarify(false);
@@ -195,13 +196,16 @@ export function InteractiveChain({
   };
 
   const continueChain = (withFeedback: boolean) => {
-    let history = messages;
-    const pre: Turn[] = [];
-    if (withFeedback && feedback.trim()) {
-      history = [...messages, { role: "user", content: feedback.trim() }];
-      pre.push({ kind: "feedback", content: feedback.trim() });
-      setFeedback("");
-    }
+    const note = withFeedback ? feedback.trim() : "";
+    // Always end the conversation with a user message so each step alternates
+    // roles (Claude requires the last message to be from the user). A plain
+    // "continue" is sent (hidden) when there's no feedback.
+    const history: ApiMessage[] = [
+      ...messages,
+      { role: "user", content: note || "Continue — build on and improve the response above." },
+    ];
+    const pre: Turn[] = note ? [{ kind: "feedback", content: note }] : [];
+    if (note) setFeedback("");
     runStep(stepIndex, history, pre);
   };
 
@@ -307,7 +311,7 @@ export function InteractiveChain({
               <div className="error">{t.error}</div>
             ) : (
               <>
-                <MarkdownView text={t.content} />
+                <MarkdownView text={t.content} perplexity={t.ai === "perplexity"} />
                 <Sources citations={t.citations} />
               </>
             )}
@@ -324,7 +328,7 @@ export function InteractiveChain({
               {clarifying && <span className="muted tiny">clarifying…</span>}
             </div>
           </div>
-          <MarkdownView text={streaming} />
+          <MarkdownView text={streaming} perplexity={streamingAi === "perplexity"} />
           <span className="cursor">▍</span>
         </div>
       )}

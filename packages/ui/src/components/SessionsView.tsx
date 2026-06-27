@@ -274,7 +274,7 @@ function SessionDetail({ session, onBack }: { session: SessionRun; onBack: () =>
                     <div className="error">{r.error}</div>
                   ) : (
                     <>
-                      <MarkdownView text={r.content} />
+                      <MarkdownView text={r.content} perplexity={r.ai === "perplexity"} />
                       <Sources citations={r.citations} />
                     </>
                   )}

@@ -502,7 +502,7 @@ export function QueryView() {
                 <div className="error">{r.error}</div>
               ) : (
                 <>
-                  <MarkdownView text={r.content} />
+                  <MarkdownView text={r.content} perplexity={r.ai === "perplexity"} />
                   <Sources citations={r.citations} />
                 </>
               )}
