@@ -192,7 +192,15 @@ async function callOpenAICompatible(
     if (systemPrompt) all.push({ role: "system", content: systemPrompt });
     for (const m of messages) all.push({ role: m.role, content: m.content });
 
-    if (options?.tokens) {
+    // Perplexity's streaming API (notably `sonar-pro`) drops structural
+    // newlines and spaces at markdown boundaries — headings glue to body text
+    // ("personasFrom"), `##` loses its space ("##1."), and list items run
+    // together ("cattle- **Arrival"). The NON-streaming response is clean, so
+    // we always fetch Perplexity whole and hand the UI the full text in a
+    // single token() call (same code path, just no incremental reveal).
+    const canStream = Boolean(options?.tokens) && ai !== "perplexity";
+
+    if (canStream) {
       const streamResp = await client.chat.completions.create({
         model,
         max_tokens,
@@ -209,7 +217,7 @@ async function callOpenAICompatible(
         const delta = chunk.choices[0]?.delta?.content ?? "";
         if (delta) {
           collected += delta;
-          options.tokens(delta);
+          options?.tokens?.(delta);
         }
         if (chunk.usage) {
           usage = {
@@ -230,9 +238,14 @@ async function callOpenAICompatible(
       max_tokens,
       messages: all,
     });
+    const content = response.choices[0]?.message?.content ?? "";
+    // When a token callback was supplied but we deliberately skipped streaming
+    // (Perplexity), still feed the UI through the same path by emitting the
+    // whole clean response as one delta.
+    if (options?.tokens && content) options.tokens(content);
     return {
       ai,
-      content: response.choices[0]?.message?.content ?? "",
+      content,
       duration_ms: Date.now() - start,
       model,
       citations: extractCitations(response),
