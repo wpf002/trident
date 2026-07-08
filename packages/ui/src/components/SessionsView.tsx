@@ -25,8 +25,20 @@ function groupSessionsByDay(sessions: SessionRun[]): SessionDayGroup[] {
   return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
 }
 
+// SQLite's datetime('now') stores created_at as "YYYY-MM-DD HH:MM:SS" in UTC
+// with no zone marker. `new Date()` would parse that naive string as *local*
+// time, showing the UTC clock instead of the viewer's. Treat a zone-less
+// timestamp as UTC; pass ISO strings (with T/Z/offset) straight through.
+function parseServerDate(iso: string): Date {
+  if (!iso) return new Date(NaN);
+  const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso);
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/.exec(iso);
+  if (m && !hasZone) return new Date(`${m[1]}T${m[2]}Z`);
+  return new Date(iso);
+}
+
 function dayKey(iso: string): string {
-  const d = new Date(iso);
+  const d = parseServerDate(iso);
   if (isNaN(d.getTime())) return "Unknown";
   const today = new Date();
   const yesterday = new Date();
@@ -251,7 +263,7 @@ function SessionListRow({
 
 function formatTimeOnly(iso: string): string {
   if (!iso) return "";
-  const d = new Date(iso);
+  const d = parseServerDate(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
@@ -321,7 +333,7 @@ function SessionDetail({ session, onBack }: { session: SessionRun; onBack: () =>
 
 function formatDate(iso: string): string {
   if (!iso) return "";
-  const d = new Date(iso);
+  const d = parseServerDate(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString(undefined, {
     month: "short",
