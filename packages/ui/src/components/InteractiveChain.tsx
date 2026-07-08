@@ -89,6 +89,9 @@ export function InteractiveChain({
   const [feedback, setFeedback] = useState("");
   const [clarifyAnswer, setClarifyAnswer] = useState("");
   const [followup, setFollowup] = useState("");
+  // Which model answers a follow-up. Defaults to the last model in the chain —
+  // the one that produced the final synthesis and holds the full context.
+  const [followupAi, setFollowupAi] = useState<AIName>(order[order.length - 1]);
   const [error, setError] = useState<string | null>(null);
 
   const startedRef = useRef(false);
@@ -215,7 +218,7 @@ export function InteractiveChain({
     setTurns((t) => [...t, { kind: "feedback", content: followup.trim() }]);
     setMessages(history);
     setFollowup("");
-    const ai = order[order.length - 1];
+    const ai = followupAi;
     const r = await streamTurn(ai, history, "Continue the conversation, directly addressing the user's latest message.");
     setTurns((t) => [
       ...t,
@@ -375,9 +378,23 @@ export function InteractiveChain({
         </div>
       )}
 
-      {/* After the chain: keep the dialogue going. */}
+      {/* After the chain: copy/export, start over, or keep the dialogue going. */}
       {chainDone && !busy && (
         <div className="card column">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="label" style={{ margin: 0 }}>
+              Chain complete · {order.map(aiLabel).join(" → ")}
+            </span>
+            <div className="row" style={{ gap: 8 }}>
+              <CopyResultsButton prompt={prompt} responses={copyResponses} />
+              <button className="secondary" onClick={onNewChat}>
+                New Chat
+              </button>
+            </div>
+          </div>
+
+          <div className="divider" />
+
           <div className="label" style={{ margin: 0 }}>
             Follow-up — keep the conversation going
           </div>
@@ -387,11 +404,30 @@ export function InteractiveChain({
             onChange={(e) => setFollowup(e.target.value)}
             rows={2}
           />
-          <div className="row">
+          <div className="row" style={{ gap: 8, alignItems: "center" }}>
+            {order.length > 1 && (
+              <label className="row" style={{ gap: 6, alignItems: "center", margin: 0 }}>
+                <span className="muted tiny">Answered by</span>
+                <select
+                  value={followupAi}
+                  onChange={(e) => setFollowupAi(e.target.value as AIName)}
+                >
+                  {order.map((a) => (
+                    <option key={a} value={a}>
+                      {aiLabel(a)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button className="primary" onClick={sendFollowup} disabled={!followup.trim()}>
-              Send → {aiLabel(order[order.length - 1])}
+              Send → {aiLabel(followupAi)}
             </button>
           </div>
+          <span className="muted tiny">
+            Continues the conversation with the model you pick — it sees the full chain above. Defaults to{" "}
+            {aiLabel(order[order.length - 1])}, which gave the final answer.
+          </span>
         </div>
       )}
     </div>
