@@ -191,8 +191,11 @@ export function InteractiveChain({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist (upsert) to History whenever the transcript grows.
+  // Persist (upsert) to History only once the chain has run every step — a
+  // chain still paused between steps (or abandoned midway) never appears.
+  // After completion, follow-ups keep upserting since chainDone stays true.
   useEffect(() => {
+    if (!chainDone) return;
     const aiTurns = turns.filter((t) => t.kind === "ai");
     if (aiTurns.length === 0) return;
     const finishedAt = new Date().toISOString();
