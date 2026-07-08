@@ -338,11 +338,14 @@ export function InteractiveChain({
             onChange={(e) => setFollowup(e.target.value)}
             rows={2}
           />
-          <div className="row" style={{ gap: 8, alignItems: "center" }}>
+          <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "nowrap" }}>
             {order.length > 1 && (
-              <label className="row" style={{ gap: 6, alignItems: "center", margin: 0 }}>
-                <span className="muted tiny">Answered by</span>
+              <>
+                <label htmlFor="followup-ai" className="muted tiny" style={{ margin: 0, whiteSpace: "nowrap" }}>
+                  Answered by
+                </label>
                 <select
+                  id="followup-ai"
                   value={followupAi}
                   onChange={(e) => setFollowupAi(e.target.value as AIName)}
                 >
@@ -352,9 +355,14 @@ export function InteractiveChain({
                     </option>
                   ))}
                 </select>
-              </label>
+              </>
             )}
-            <button className="primary" onClick={sendFollowup} disabled={!followup.trim()}>
+            <button
+              className="primary"
+              style={{ whiteSpace: "nowrap" }}
+              onClick={sendFollowup}
+              disabled={!followup.trim()}
+            >
               Send → {aiLabel(followupAi)}
             </button>
           </div>
