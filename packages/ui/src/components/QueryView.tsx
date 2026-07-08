@@ -17,7 +17,6 @@ interface ChainRun {
   systemPrompts: Partial<Record<AIName, string>>;
   system?: string;
   tier: Tier;
-  clarifyFirst: boolean;
 }
 
 interface StreamResponse {
@@ -99,7 +98,6 @@ export function QueryView() {
   const [error, setError] = useState<string | null>(null);
   const [presets, setPresets] = useState<Record<string, ChainPreset>>({});
   const [chainRun, setChainRun] = useState<ChainRun | null>(null);
-  const [clarifyFirst, setClarifyFirst] = useState(false);
 
   useEffect(() => {
     apiFetch("/api/presets")
@@ -142,7 +140,6 @@ export function QueryView() {
         systemPrompts: cfg?.systemPrompts ?? {},
         system: system || undefined,
         tier,
-        clarifyFirst,
       });
       return;
     }
@@ -416,18 +413,6 @@ export function QueryView() {
               </select>
             </div>
           </div>
-          {mode === "chain" && (
-            <div className="row">
-              <label className="row" style={{ gap: 8, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={clarifyFirst}
-                  onChange={(e) => setClarifyFirst(e.target.checked)}
-                />
-                <span className="muted tiny">Ask clarifying questions before starting</span>
-              </label>
-            </div>
-          )}
           <div className="row">
             <button
               className="primary"
@@ -461,7 +446,6 @@ export function QueryView() {
           systemPrompts={chainRun.systemPrompts}
           system={chainRun.system}
           tier={chainRun.tier}
-          clarifyFirst={chainRun.clarifyFirst}
           onNewChat={newChat}
         />
       )}

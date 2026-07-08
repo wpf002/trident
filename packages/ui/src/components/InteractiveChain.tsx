@@ -31,16 +31,6 @@ interface TurnResult {
   duration_ms?: number;
 }
 
-const CLARIFY_SYSTEM =
-  "Decide whether the user's request is ambiguous. If it would genuinely " +
-  "benefit from clarification, ask 1-3 short, specific questions and nothing " +
-  "else. If it is already clear enough to answer well, reply with exactly: READY";
-
-function isReady(s: string): boolean {
-  const t = s.trim();
-  return /^ready\b/i.test(t) && t.length < 40;
-}
-
 // Clean, standalone step instructions (no meta "you are in a chain" narration).
 function stepSystem(
   ai: AIName,
@@ -57,9 +47,9 @@ function stepSystem(
 }
 
 /**
- * Step-by-step chain: optionally asks clarifying questions first, runs one AI
- * at a time, pauses between steps for feedback, stays open for follow-ups, and
- * saves the whole conversation to History as it goes.
+ * Step-by-step chain: runs one AI at a time, pauses between steps for optional
+ * feedback/clarification, stays open for follow-ups, and saves the whole
+ * conversation to History as it goes.
  */
 export function InteractiveChain({
   prompt,
@@ -67,7 +57,6 @@ export function InteractiveChain({
   systemPrompts,
   system,
   tier,
-  clarifyFirst,
   onNewChat,
 }: {
   prompt: string;
@@ -75,19 +64,15 @@ export function InteractiveChain({
   systemPrompts: Partial<Record<AIName, string>>;
   system?: string;
   tier: Tier;
-  clarifyFirst?: boolean;
   onNewChat: () => void;
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [messages, setMessages] = useState<ApiMessage[]>([{ role: "user", content: prompt }]);
   const [stepIndex, setStepIndex] = useState(0);
-  const [clarifying, setClarifying] = useState<boolean>(!!clarifyFirst);
-  const [awaitingClarify, setAwaitingClarify] = useState(false);
   const [streaming, setStreaming] = useState<string | null>(null);
   const [streamingAi, setStreamingAi] = useState<AIName | null>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [clarifyAnswer, setClarifyAnswer] = useState("");
   const [followup, setFollowup] = useState("");
   // Which model answers a follow-up. Defaults to the last model in the chain —
   // the one that produced the final synthesis and holds the full context.
@@ -101,8 +86,8 @@ export function InteractiveChain({
   const startedAt = useRef(new Date().toISOString());
   const startMs = useRef(Date.now());
 
-  const chainDone = !clarifying && stepIndex >= order.length;
-  const paused = !busy && !clarifying && !chainDone && stepIndex > 0;
+  const chainDone = stepIndex >= order.length;
+  const paused = !busy && !chainDone && stepIndex > 0;
 
   // Stream a single turn — pure: streams tokens and returns the final result.
   const streamTurn = async (ai: AIName, history: ApiMessage[], sys: string): Promise<TurnResult> => {
@@ -169,35 +154,6 @@ export function InteractiveChain({
     setStepIndex(i + 1);
   };
 
-  // Optional clarify phase before the chain.
-  const runClarify = async () => {
-    const ai = order[0];
-    const r = await streamTurn(ai, [{ role: "user", content: prompt }], CLARIFY_SYSTEM);
-    if (r.error || isReady(r.content)) {
-      setClarifying(false);
-      runStep(0, [{ role: "user", content: prompt }]);
-      return;
-    }
-    setTurns((t) => [
-      ...t,
-      { kind: "ai", ai, label: "clarifying questions", content: r.content, citations: r.citations, duration_ms: r.duration_ms },
-    ]);
-    setMessages((m) => [...m, { role: "assistant", content: r.content }]);
-    setAwaitingClarify(true);
-  };
-
-  const submitClarify = () => {
-    const ans = clarifyAnswer.trim();
-    // The conversation must end with a user message (Claude rejects otherwise),
-    // so always append one — the answer, or a hidden "go ahead" if skipped.
-    const history: ApiMessage[] = [...messages, { role: "user", content: ans || "Go ahead with your best answer." }];
-    const pre: Turn[] = ans ? [{ kind: "feedback", content: ans }] : [];
-    setClarifyAnswer("");
-    setAwaitingClarify(false);
-    setClarifying(false);
-    runStep(0, history, pre);
-  };
-
   const continueChain = (withFeedback: boolean) => {
     const note = withFeedback ? feedback.trim() : "";
     // Always end the conversation with a user message so each step alternates
@@ -231,8 +187,7 @@ export function InteractiveChain({
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    if (clarifyFirst) runClarify();
-    else runStep(0, [{ role: "user", content: prompt }]);
+    runStep(0, [{ role: "user", content: prompt }]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -328,7 +283,6 @@ export function InteractiveChain({
             <div className="row">
               <span className={"tag " + (streamingAi ?? "")}>{aiLabel(streamingAi ?? "")}</span>
               <span className="spinner" />
-              {clarifying && <span className="muted tiny">clarifying…</span>}
             </div>
           </div>
           <MarkdownView text={streaming} perplexity={streamingAi === "perplexity"} />
@@ -337,26 +291,6 @@ export function InteractiveChain({
       )}
 
       {error && <div className="error">{error}</div>}
-
-      {/* Answer the clarifying questions, then start the chain. */}
-      {awaitingClarify && !busy && (
-        <div className="card bordered-gold column">
-          <div className="label" style={{ margin: 0 }}>
-            Answer the questions above, then start the chain
-          </div>
-          <textarea
-            placeholder="Your answers / extra context…"
-            value={clarifyAnswer}
-            onChange={(e) => setClarifyAnswer(e.target.value)}
-            rows={3}
-          />
-          <div className="row">
-            <button className="primary" onClick={submitClarify} disabled={busy}>
-              {clarifyAnswer.trim() ? "Answer → start chain" : "Skip → start chain"}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Between-step pause: continue, optionally with feedback. */}
       {paused && (
