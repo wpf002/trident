@@ -69,7 +69,7 @@ export const CHAIN_PRESETS: Record<string, ChainPreset> = {
         "You have research and analysis above. Synthesize everything into a single, clear, standalone final answer for the reader. Lead with the takeaway, keep it well-organized, and don't lose the important nuance.",
     },
   },
-  "gemini-draft-refine-verify": {
+  "sketch-sharpen-verify": {
     order: ["gemini", "claude", "perplexity"],
     description: "Gemini drafts fast → Claude sharpens the reasoning → Perplexity fact-checks",
     systemPrompts: {
@@ -90,7 +90,7 @@ export const CHAIN_PRESETS: Record<string, ChainPreset> = {
         "You have two prior takes above. Reconcile them into the strongest single answer — resolve any disagreements, keep the best of each, and state the final conclusion with confidence.",
     },
   },
-  "gemini-debate-judge": {
+  "argue-counter-judge": {
     order: ["gemini", "claude", "gpt"],
     description: "Gemini argues for → Claude argues against → ChatGPT judges the debate",
     systemPrompts: {
