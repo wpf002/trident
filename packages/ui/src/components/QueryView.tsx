@@ -60,13 +60,6 @@ interface RunState {
 type Tier = "premium" | "main" | "utility";
 
 const ALL_AIS: AIName[] = ["claude", "gpt", "perplexity", "gemini"];
-const PRESETS = [
-  "draft-refine-verify",
-  "research-analyze-summarize",
-  "attack-defend-judge",
-  "research-ideate-build",
-];
-
 interface RawResponseEvent {
   ai: AIName;
   content?: string;
@@ -373,7 +366,7 @@ export function QueryView() {
                 <div className="label">Preset</div>
                 <select value={preset} onChange={(e) => setPreset(e.target.value)}>
                   <option value="">Custom order</option>
-                  {PRESETS.map((p) => (
+                  {Object.keys(presets).map((p) => (
                     <option key={p} value={p}>
                       {prettyPreset(p)}
                     </option>
