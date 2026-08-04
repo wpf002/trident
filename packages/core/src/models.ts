@@ -30,9 +30,13 @@ const DEFAULTS: Record<AIName, Record<ModelTier, string>> = {
     utility: "sonar",
   },
   gemini: {
-    premium: "gemini-2.5-pro",
-    main: "gemini-2.5-flash",
-    utility: "gemini-2.5-flash-lite",
+    // Use Google's "-latest" aliases: pinned versions (e.g. gemini-2.5-flash)
+    // get gated to "not available to new users", but the aliases always point
+    // at a live model. Premium (Pro) needs billing enabled on the Google
+    // account — on the free tier it returns a 429 quota error.
+    premium: "gemini-pro-latest",
+    main: "gemini-flash-latest",
+    utility: "gemini-flash-lite-latest",
   },
 };
 
