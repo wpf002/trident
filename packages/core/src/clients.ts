@@ -6,12 +6,13 @@ import type { AIMessage, AIName, AIResponse } from "./clients-types.js";
 export type { AIMessage, AIName, AIResponse } from "./clients-types.js";
 export type { ModelTier } from "./models.js";
 
-export const VALID_AIS: ReadonlySet<AIName> = new Set<AIName>(["claude", "gpt", "perplexity"]);
-export const DEFAULT_ORDER: AIName[] = ["claude", "gpt", "perplexity"];
+export const VALID_AIS: ReadonlySet<AIName> = new Set<AIName>(["claude", "gpt", "perplexity", "gemini"]);
+export const DEFAULT_ORDER: AIName[] = ["claude", "gpt", "perplexity", "gemini"];
 export const AI_LABELS: Record<AIName, string> = {
   claude: "Claude",
   gpt: "ChatGPT",
   perplexity: "Perplexity",
+  gemini: "Gemini",
 };
 
 /** Human label for an AI name, falling back to upper-case for unknown values. */
@@ -45,6 +46,7 @@ const MAX_OUTPUT_TOKENS: Record<AIName, number> = {
   claude: 16384,
   gpt: 16384,
   perplexity: 8192,
+  gemini: 16384,
 };
 
 /** Back-compat alias — older code passed only `{ tokens, signal }`. */
@@ -269,6 +271,18 @@ export const callGPT = (m: AIMessage[], s?: string, opts?: CallOptions) =>
 export const callPerplexity = (m: AIMessage[], s?: string, opts?: CallOptions) =>
   callOpenAICompatible("perplexity", "https://api.perplexity.ai", "PERPLEXITY_API_KEY", m, s, opts);
 
+// Gemini speaks an OpenAI-compatible dialect at this base URL, so it rides the
+// same client as GPT/Perplexity — no separate SDK. Set GEMINI_API_KEY.
+export const callGemini = (m: AIMessage[], s?: string, opts?: CallOptions) =>
+  callOpenAICompatible(
+    "gemini",
+    "https://generativelanguage.googleapis.com/v1beta/openai",
+    "GEMINI_API_KEY",
+    m,
+    s,
+    opts
+  );
+
 export const AI_MAP: Record<
   AIName,
   (m: AIMessage[], s?: string, opts?: CallOptions) => Promise<AIResponse>
@@ -276,4 +290,5 @@ export const AI_MAP: Record<
   claude: callClaude,
   gpt: callGPT,
   perplexity: callPerplexity,
+  gemini: callGemini,
 };

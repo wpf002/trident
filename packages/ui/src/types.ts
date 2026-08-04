@@ -26,12 +26,13 @@ export interface SessionRun {
   created_at: string;
 }
 
-export type AIName = "claude" | "gpt" | "perplexity";
+export type AIName = "claude" | "gpt" | "perplexity" | "gemini";
 
 export const AI_LABELS: Record<string, string> = {
   claude: "Claude",
   gpt: "ChatGPT",
   perplexity: "Perplexity",
+  gemini: "Gemini",
 };
 
 export function aiLabel(ai: string): string {

@@ -9,6 +9,7 @@ export const AI_COLORS: Record<AIName, ChalkInstance> = {
   claude: chalk.hex("#D4A017"),
   gpt: chalk.hex("#10A37F"),
   perplexity: chalk.hex("#6C63FF"),
+  gemini: chalk.hex("#5B9BFF"),
 };
 
 export function aiColor(ai: string): ChalkInstance {

@@ -15,7 +15,7 @@ export type ModelTier = "premium" | "main" | "utility";
 
 const DEFAULTS: Record<AIName, Record<ModelTier, string>> = {
   claude: {
-    premium: "claude-opus-4-7",
+    premium: "claude-opus-5",
     main: "claude-sonnet-4-6",
     utility: "claude-haiku-4-5-20251001",
   },
@@ -28,6 +28,11 @@ const DEFAULTS: Record<AIName, Record<ModelTier, string>> = {
     premium: "sonar-reasoning",
     main: "sonar-pro",
     utility: "sonar",
+  },
+  gemini: {
+    premium: "gemini-2.5-pro",
+    main: "gemini-2.5-flash",
+    utility: "gemini-2.5-flash-lite",
   },
 };
 
@@ -47,6 +52,11 @@ const ENV_KEYS: Record<AIName, Record<ModelTier, string>> = {
     main: "TRIDENT_PERPLEXITY_MAIN_MODEL",
     utility: "TRIDENT_PERPLEXITY_UTILITY_MODEL",
   },
+  gemini: {
+    premium: "TRIDENT_GEMINI_PREMIUM_MODEL",
+    main: "TRIDENT_GEMINI_MAIN_MODEL",
+    utility: "TRIDENT_GEMINI_UTILITY_MODEL",
+  },
 };
 
 export function modelFor(ai: AIName, tier: ModelTier = "main"): string {
@@ -56,7 +66,7 @@ export function modelFor(ai: AIName, tier: ModelTier = "main"): string {
 
 export function listModels(): Array<{ ai: AIName; tier: ModelTier; model: string }> {
   const out: Array<{ ai: AIName; tier: ModelTier; model: string }> = [];
-  for (const ai of ["claude", "gpt", "perplexity"] as AIName[]) {
+  for (const ai of ["claude", "gpt", "perplexity", "gemini"] as AIName[]) {
     for (const tier of ["premium", "main", "utility"] as ModelTier[]) {
       out.push({ ai, tier, model: modelFor(ai, tier) });
     }

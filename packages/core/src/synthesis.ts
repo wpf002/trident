@@ -62,8 +62,9 @@ export const CONFIDENCE_SYSTEM_PROMPT = `You are evaluating multiple AI response
 Rules:
 - "scores" must include one entry per response, in the same order they were given.
 - "confidence" reflects how well-supported, specific, and accurate the response appears (0 = clearly unreliable, 100 = clearly authoritative).
+- "rationale" is one plain-language sentence a non-expert can follow, saying WHY the score is what it is (e.g. "Backed by specific figures and sources" or "Confident tone but no evidence for its main claim"). Avoid jargon.
 - "agreement" reflects how aligned the responses are with each other overall.
-- "consensus" lists 1-5 bullets the responses share. "disagreement" lists 1-5 bullets where they differ. Either may be empty.
+- "consensus" lists 1-5 short, plain-language bullets stating what the answers agree on. "disagreement" lists 1-5 plain-language bullets on where they differ (name which side takes which view). Either may be empty.
 - Do not invent AI names; use the names exactly as given.`;
 
 export interface ConfidenceScore {

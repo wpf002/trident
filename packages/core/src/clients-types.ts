@@ -2,7 +2,7 @@
 // clients.ts (runtime, depends on models.ts) and models.ts (compile-time
 // type reference).
 
-export type AIName = "claude" | "gpt" | "perplexity";
+export type AIName = "claude" | "gpt" | "perplexity" | "gemini";
 
 export interface AIMessage {
   role: "user" | "assistant";

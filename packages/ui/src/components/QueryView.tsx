@@ -59,7 +59,7 @@ interface RunState {
 
 type Tier = "premium" | "main" | "utility";
 
-const ALL_AIS: AIName[] = ["claude", "gpt", "perplexity"];
+const ALL_AIS: AIName[] = ["claude", "gpt", "perplexity", "gemini"];
 const PRESETS = [
   "draft-refine-verify",
   "research-analyze-summarize",
@@ -407,9 +407,9 @@ export function QueryView() {
             <div style={{ minWidth: 220 }}>
               <div className="label">Model tier</div>
               <select value={tier} onChange={(e) => setTier(e.target.value as Tier)}>
-                <option value="utility">Fast — Haiku · 4o-mini · sonar</option>
-                <option value="main">Main — Sonnet · 4o-mini · sonar-pro</option>
-                <option value="premium">Premium — Opus · 4o · sonar-reasoning</option>
+                <option value="utility">Fast — Haiku · 4o-mini · sonar · Flash-Lite</option>
+                <option value="main">Main — Sonnet · 4o-mini · sonar-pro · Flash</option>
+                <option value="premium">Premium — Opus · 4o · sonar-reasoning · 2.5 Pro</option>
               </select>
             </div>
           </div>
@@ -581,15 +581,27 @@ function ConfidenceReportView({ report }: { report: ConfidenceReport }) {
       : report.agreement === "medium"
       ? "var(--yellow)"
       : "var(--red)";
+  const agreementPhrase =
+    report.agreement === "high"
+      ? "They mostly agree"
+      : report.agreement === "medium"
+      ? "They partly agree"
+      : "They largely disagree";
+  const confidenceWord = (n: number) =>
+    n >= 80 ? "Strong" : n >= 60 ? "Solid" : n >= 40 ? "Mixed" : "Shaky";
   return (
     <div className="column">
+      <div className="muted tiny">How trustworthy each answer looks, and where they line up.</div>
+
       {report.scores.map((s) => {
         const w = Math.max(0, Math.min(100, s.confidence));
         return (
           <div key={s.ai}>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <span className={"tag " + s.ai}>{aiLabel(s.ai)}</span>
-              <span className="muted tiny">{s.confidence}/100</span>
+              <span className="muted tiny">
+                {confidenceWord(s.confidence)} · {s.confidence}/100
+              </span>
             </div>
             <div className="confidence-bar">
               <div style={{ width: `${w}%` }} />
@@ -600,12 +612,37 @@ function ConfidenceReportView({ report }: { report: ConfidenceReport }) {
           </div>
         );
       })}
-      <div className="muted tiny">
-        Overall Agreement:{" "}
-        <span style={{ color: agreementColor, fontWeight: 600, textTransform: "uppercase" }}>
-          {report.agreement}
-        </span>
+
+      <div className="row" style={{ gap: 6 }}>
+        <span className="muted tiny">Overall:</span>
+        <span style={{ color: agreementColor, fontWeight: 600 }}>{agreementPhrase}</span>
       </div>
+
+      {report.consensus.length > 0 && (
+        <div>
+          <div className="label" style={{ margin: "0 0 4px" }}>
+            What they agree on
+          </div>
+          <ul className="confidence-list">
+            {report.consensus.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {report.disagreement.length > 0 && (
+        <div>
+          <div className="label" style={{ margin: "0 0 4px" }}>
+            Where they differ
+          </div>
+          <ul className="confidence-list">
+            {report.disagreement.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
