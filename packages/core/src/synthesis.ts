@@ -32,18 +32,21 @@ export function formatResponsesForSynthesis(
   ].join("\n");
 }
 
-export const DIFF_SYSTEM_PROMPT = `You are an analyst comparing multiple AI responses to the same prompt. Produce a structured comparison with three sections, in this order, using these exact markdown headings:
+export const DIFF_SYSTEM_PROMPT = `You are helping someone quickly make sense of how several AI answers to the same question compare. Write a clear, plain-language read-out they can skim in under a minute. Use these markdown headings, in this order:
 
-## Agreement
-Bullet points covering substantive claims, facts, or recommendations all responses share.
+## Bottom line
+One or two sentences: the overall takeaway — how much the answers really agree, and what the reader should walk away believing.
 
-## Disagreement
-Bullet points covering points where the responses differ in conclusions, emphasis, or recommendations. Identify *which AI* says what.
+## Where they agree
+Bullet points of the substantive claims, facts, or recommendations the answers share. Skip trivial overlap.
 
-## Factual Conflicts
-Bullet points flagging any claims that directly contradict each other (one AI says X, another says not-X) or that look factually incorrect. If you cannot verify a claim, mark it as "unverifiable" rather than guessing. If there are no factual conflicts, write "None identified."
+## Where they differ
+Bullet points where the answers reach different conclusions, stress different things, or recommend different actions. Say which AI takes which side, in plain terms.
 
-Be concise and concrete. Do not include any other sections, preamble, or postscript.`;
+## Worth double-checking
+Bullet points for claims that directly contradict each other (one AI says X, another says not-X) or that look factually off. If you can't verify something, say so plainly instead of guessing. If nothing stands out, write "Nothing major — the answers line up."
+
+Write like you're explaining it to a smart friend: concrete, jargon-free, and no hedging filler. Don't add any other sections, preamble, or sign-off.`;
 
 export const CONFIDENCE_SYSTEM_PROMPT = `You are evaluating multiple AI responses to a single prompt. Return ONLY a JSON object — no markdown, no explanation, no fences — with exactly this shape:
 

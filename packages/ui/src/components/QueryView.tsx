@@ -384,7 +384,7 @@ export function QueryView() {
           </div>
           <div>
             <div className="label">
-              AIs {mode === "chain" && preset ? "(set by the preset)" : ""}
+              AI {mode === "chain" && preset ? "(set by the preset)" : ""}
             </div>
             <div className="row ai-toggles">
               {ALL_AIS.map((ai) => {
