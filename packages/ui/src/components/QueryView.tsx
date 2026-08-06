@@ -402,7 +402,7 @@ export function QueryView() {
               <select value={tier} onChange={(e) => setTier(e.target.value as Tier)}>
                 <option value="utility">Fast — Haiku · 4o-mini · sonar · Flash-Lite</option>
                 <option value="main">Main — Sonnet · 4o-mini · sonar-pro · Flash</option>
-                <option value="premium">Premium — Opus · 4o · sonar-reasoning · 2.5 Pro</option>
+                <option value="premium">Premium — Opus · 4o · sonar-reasoning-pro · 2.5 Pro</option>
               </select>
             </div>
           </div>
