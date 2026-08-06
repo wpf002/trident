@@ -47,7 +47,7 @@ export const CHAIN_PRESETS: Record<string, ChainPreset> = {
         "You have research from Perplexity and creative directions from ChatGPT above. Now produce the realistic build plan. Pick the strongest direction (or a hybrid), justify it briefly, then deliver: (1) what to build first, (2) the next 3-5 steps in order, (3) the key tradeoffs and risks, (4) what would have to be true for this to succeed. Be concrete and committal.",
     },
   },
-  council: {
+  "draft-refine-expand-verify": {
     order: ["claude", "gpt", "gemini", "perplexity"],
     description: "Claude drafts → ChatGPT refines → Gemini adds a fresh angle → Perplexity fact-checks",
     systemPrompts: {
@@ -80,7 +80,7 @@ export const CHAIN_PRESETS: Record<string, ChainPreset> = {
         "Fact-check and enrich the response above with current, accurate information. Flag anything outdated or wrong, and cite sources.",
     },
   },
-  "triangulate": {
+  "answer-challenge-reconcile": {
     order: ["gemini", "gpt", "claude"],
     description: "Three models cross-check each other: Gemini → ChatGPT → Claude, each building on the last",
     systemPrompts: {
