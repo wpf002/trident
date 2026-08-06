@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { aiLabel, AIName } from "../types.js";
 import { MarkdownView } from "./MarkdownView.js";
 import { formatDuration, prettyPreset } from "../lib/format.js";
@@ -9,6 +9,7 @@ import { InteractiveChain } from "./InteractiveChain.js";
 
 interface ChainPreset {
   order: AIName[];
+  description?: string;
   systemPrompts?: Partial<Record<AIName, string>>;
 }
 interface ChainRun {
@@ -379,22 +380,25 @@ export function QueryView() {
             <div className="label">
               AI {mode === "chain" && preset ? "(set by the preset)" : ""}
             </div>
-            <div className="row ai-toggles">
-              {ALL_AIS.map((ai) => {
-                const active = ais.includes(ai);
-                return (
-                  <button
-                    key={ai}
-                    onClick={() => toggleAi(ai)}
-                    className={active ? "primary" : "secondary"}
-                    style={{ minWidth: 120 }}
-                    disabled={mode === "chain" && !!preset}
-                  >
-                    {aiLabel(ai)}
-                  </button>
-                );
-              })}
-            </div>
+            {mode === "chain" && preset && presets[preset] ? (
+              <PresetInfo preset={presets[preset]} />
+            ) : (
+              <div className="row ai-toggles">
+                {ALL_AIS.map((ai) => {
+                  const active = ais.includes(ai);
+                  return (
+                    <button
+                      key={ai}
+                      onClick={() => toggleAi(ai)}
+                      className={active ? "primary" : "secondary"}
+                      style={{ minWidth: 120 }}
+                    >
+                      {aiLabel(ai)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="row">
             <div style={{ minWidth: 220 }}>
@@ -556,6 +560,26 @@ export function QueryView() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Shown when a chain preset is selected: the exact AIs it runs, in order,
+// plus a plain-language description of what each step does.
+function PresetInfo({ preset }: { preset: ChainPreset }) {
+  return (
+    <div className="preset-info">
+      <div className="preset-flow">
+        {preset.order.map((ai, i) => (
+          <Fragment key={ai + i}>
+            {i > 0 && <span className="preset-arrow" aria-hidden="true">→</span>}
+            <span className={"tag " + ai}>
+              {i + 1}. {aiLabel(ai)}
+            </span>
+          </Fragment>
+        ))}
+      </div>
+      {preset.description && <div className="preset-desc">{preset.description}</div>}
     </div>
   );
 }

@@ -1082,6 +1082,32 @@ details.ai-block .ai-block-body {
   background: linear-gradient(90deg, var(--gold-dim), var(--gold-bright));
   border-radius: 3px;
 }
+/* Chain-preset info panel (shown when a preset is selected) */
+.preset-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev-2);
+}
+.preset-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.preset-arrow {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+.preset-desc {
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 .confidence-list {
   margin: 0;
   padding-left: 18px;
