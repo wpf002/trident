@@ -25,7 +25,7 @@ const DEFAULTS: Record<AIName, Record<ModelTier, string>> = {
     utility: "gpt-4o-mini",
   },
   perplexity: {
-    premium: "sonar-reasoning",
+    premium: "sonar-reasoning-pro",
     main: "sonar-pro",
     utility: "sonar",
   },
