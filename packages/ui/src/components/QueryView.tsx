@@ -377,27 +377,27 @@ export function QueryView() {
             )}
           </div>
           <div>
-            <div className="label">
-              AI {mode === "chain" && preset ? "(set by the preset)" : ""}
-            </div>
             {mode === "chain" && preset && presets[preset] ? (
               <PresetInfo preset={presets[preset]} />
             ) : (
-              <div className="row ai-toggles">
-                {ALL_AIS.map((ai) => {
-                  const active = ais.includes(ai);
-                  return (
-                    <button
-                      key={ai}
-                      onClick={() => toggleAi(ai)}
-                      className={active ? "primary" : "secondary"}
-                      style={{ minWidth: 120 }}
-                    >
-                      {aiLabel(ai)}
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                <div className="label">AI</div>
+                <div className="row ai-toggles">
+                  {ALL_AIS.map((ai) => {
+                    const active = ais.includes(ai);
+                    return (
+                      <button
+                        key={ai}
+                        onClick={() => toggleAi(ai)}
+                        className={active ? "primary" : "secondary"}
+                        style={{ minWidth: 120 }}
+                      >
+                        {aiLabel(ai)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
           <div className="row">
