@@ -130,7 +130,7 @@ export function App() {
               setAuth("locked");
             }}
           >
-            Sign out
+            Sign Out
           </button>
         )}
       </aside>
