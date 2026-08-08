@@ -12,6 +12,16 @@ import { routeDetect, routeList } from "./commands/route.js";
 import { configShow } from "./commands/config.js";
 import { scheduleList, scheduleRun, scheduleDaemon } from "@trident/scheduler";
 import { googleLogin, googleStatus } from "./commands/google.js";
+import {
+  spineAssert,
+  spineLock,
+  spineUnlock,
+  spineCheck,
+  spineAsk,
+  spineResolve,
+  spineList,
+  spineHistory,
+} from "./commands/spine.js";
 import { AIName } from "./lib/clients.js";
 import { resolveMode } from "./lib/config.js";
 
@@ -266,5 +276,65 @@ program
     }
     console.log();
   });
+
+// ─── spine ───────────────────────────────────────────────────────────────────
+
+const spine = program
+  .command("spine")
+  .description("Claims that persist across sessions — assert, lock, check, ask");
+
+spine
+  .command("assert <statement>")
+  .description("Record a claim, checking it against existing claims in the same scope")
+  .option("-k, --key <canonical_form>", "The key this claim is about — required for conflict detection to work")
+  .option("-s, --scope <scope>", "Scope so projects don't cross-contaminate", "trident")
+  .option("--session <id>", "Session this came from (points at session_runs.id)")
+  .option("--models <list>", "Comma-separated models consulted (claude,gpt,...)")
+  .option("--verdict <verdict>", "Verdict from the session")
+  .option("--confidence <0-100>", "Confidence score from the session")
+  .option("--ref <ref>", "Pointer into the session replay payload")
+  .option("--supersedes <claimId>", "Claim this explicitly replaces")
+  .action(spineAssert);
+
+spine
+  .command("lock <claimId>")
+  .description("Lock a claim as an invariant — conflicting writes will raise, not merge")
+  .action(spineLock);
+
+spine
+  .command("unlock <claimId>")
+  .description("Unlock an invariant so it can be changed")
+  .action(spineUnlock);
+
+spine
+  .command("check <statement>")
+  .description("Dry run: would this claim conflict? Writes nothing")
+  .option("-k, --key <canonical_form>", "The key this claim is about")
+  .option("-s, --scope <scope>", "Scope to check within", "trident")
+  .action(spineCheck);
+
+spine
+  .command("ask <statement>")
+  .description("Open a question — stored as a first-class row, not an absent answer")
+  .option("-s, --scope <scope>", "Scope", "trident")
+  .action(spineAsk);
+
+spine
+  .command("resolve <questionId> <claimId>")
+  .description("Resolve an open question to the claim that answers it")
+  .action(spineResolve);
+
+spine
+  .command("list")
+  .description("List stored claims (or open questions / recorded conflicts)")
+  .option("-s, --scope <scope>", "Filter by scope")
+  .option("--questions", "List open questions instead of claims")
+  .option("--conflicts", "List recorded conflicts instead of claims")
+  .action(spineList);
+
+spine
+  .command("history <claimId>")
+  .description("Show a claim's lineage, conflicts, and the questions it answers")
+  .action(spineHistory);
 
 program.parseAsync(process.argv);

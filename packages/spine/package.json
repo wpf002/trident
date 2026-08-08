@@ -1,0 +1,25 @@
+{
+  "name": "@trident/spine",
+  "version": "1.0.0",
+  "description": "Cross-session claim persistence and conflict checking for Trident",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@trident/core": "1.0.0",
+    "better-sqlite3": "^12.9.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
+  }
+}

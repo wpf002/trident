@@ -7,8 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace=packages/core && npm run build --workspace=packages/mcp-server && npm run build --workspace=packages/scheduler && npm run build --workspace=packages/ui-server && npm run build --workspace=packages/ui && npm run build --workspace=packages/cli",
+    "build": "npm run build --workspace=packages/core && npm run build --workspace=packages/spine && npm run build --workspace=packages/mcp-server && npm run build --workspace=packages/scheduler && npm run build --workspace=packages/ui-server && npm run build --workspace=packages/ui && npm run build --workspace=packages/cli",
     "build:server": "npm run build --workspace=packages/mcp-server",
+    "build:spine": "npm run build --workspace=packages/spine",
+    "test:spine": "npm run test --workspace=packages/spine",
     "build:cli": "npm run build --workspace=packages/cli",
     "build:ui": "npm run build --workspace=packages/ui",
     "dev:server": "npm run dev --workspace=packages/mcp-server",
