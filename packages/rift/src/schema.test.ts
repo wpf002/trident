@@ -1,6 +1,9 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { appliedMigrations, migrate, rollback } from "./schema.js";
+import { appliedMigrations, migrate, rollback, RIFT_MIGRATIONS } from "./schema.js";
+
+/** All defined versions — derived, so adding a migration never breaks these. */
+const ALL = RIFT_MIGRATIONS.map((m) => m.version);
 
 // Phase 0 exit criterion: the migration applies and reverses clean, against a
 // database that already holds Trident's session replay.
@@ -34,7 +37,7 @@ const snapshot = (db: Database.Database) =>
 describe("migration — applies", () => {
   it("creates every rift table", () => {
     const db = tridentDb();
-    expect(migrate(db)).toEqual([1]);
+    expect(migrate(db)).toEqual(ALL);
 
     const tables = (
       db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'rift_%'").all() as {
@@ -54,9 +57,9 @@ describe("migration — applies", () => {
 
   it("is idempotent", () => {
     const db = tridentDb();
-    expect(migrate(db)).toEqual([1]);
+    expect(migrate(db)).toEqual(ALL);
     expect(migrate(db)).toEqual([]);
-    expect(appliedMigrations(db)).toEqual([1]);
+    expect(appliedMigrations(db)).toEqual(ALL);
   });
 
   it("only adds rift_-prefixed objects", () => {
@@ -110,7 +113,23 @@ describe("migration — reverses clean", () => {
     migrate(db);
     rollback(db, 0);
     expect(appliedMigrations(db)).toEqual([]);
-    expect(migrate(db)).toEqual([1]); // clean re-apply
+    expect(migrate(db)).toEqual(ALL); // clean re-apply
+  });
+
+  it("rolls back to a specific version, leaving earlier migrations applied", () => {
+    const db = tridentDb();
+    migrate(db);
+    expect(appliedMigrations(db)).toEqual(ALL);
+
+    // Reverse only v2 — the judge_confidence columns go, the tables stay.
+    expect(rollback(db, 1)).toEqual([2]);
+    expect(appliedMigrations(db)).toEqual([1]);
+
+    const cols = (
+      db.prepare("PRAGMA table_info(rift_model_responses)").all() as { name: string }[]
+    ).map((c) => c.name);
+    expect(cols).toContain("stated_confidence"); // v1 column survives
+    expect(cols).not.toContain("judge_confidence"); // v2 column reversed
   });
 
   it("rolling back an unmigrated database is a no-op", () => {

@@ -102,6 +102,26 @@ export const RIFT_MIGRATIONS: Migration[] = [
       DROP TABLE IF EXISTS rift_queries;
     `,
   },
+  {
+    version: 2,
+    name: "separate-judge-confidence-from-self-report",
+    // Trident's existing confidence number is produced by a separate Claude
+    // pass that scores ALL responses — a third-party judge, not each model's
+    // self-report. Storing it in `stated_confidence` would silently mislabel
+    // the §6 baseline as self-reported confidence and hide the circularity
+    // (§4: a model measuring model disagreement). Two columns, honestly named:
+    //   stated_confidence — the model's OWN report. NULL unless elicited.
+    //   judge_confidence  — Trident's judge pass. Free, but circular; the
+    //                       evaluation must label it as such.
+    up: `
+      ALTER TABLE rift_model_responses ADD COLUMN judge_confidence REAL;
+      ALTER TABLE rift_model_responses ADD COLUMN judge_model TEXT;
+    `,
+    down: `
+      ALTER TABLE rift_model_responses DROP COLUMN judge_model;
+      ALTER TABLE rift_model_responses DROP COLUMN judge_confidence;
+    `,
+  },
 ];
 
 function ensureLedger(db: Database.Database): void {

@@ -52,12 +52,20 @@ export interface ModelResponse {
   /** Normalized per answerType. Null until parsed. */
   parsedAnswer: unknown | null;
   /**
-   * Each model's OWN reported confidence. Null when not elicited.
-   * NOTE: this is NOT Trident's existing confidence score, which is a
-   * separate Claude judge pass over all responses. See the Phase 0 writeup —
-   * this field is null until that is resolved.
+   * The model's OWN reported confidence. Null unless explicitly elicited —
+   * eliciting it changes the prompt and costs output tokens (§9), so it is
+   * opt-in and null by default. NOT the same thing as judgeConfidence.
    */
   statedConfidence: number | null;
+  /**
+   * Trident's existing confidence number: a separate Claude pass that scores
+   * ALL responses. Free (it already runs), but it is a third-party JUDGE, and
+   * the judge is one of the models under measurement — circular per §4. The
+   * evaluation must label it as judge-derived, never as self-report.
+   */
+  judgeConfidence: number | null;
+  /** Which model produced judgeConfidence, so the circularity is auditable. */
+  judgeModel: string | null;
   latencyMs: number;
   tokenCost: number;
   /** OPEN answers only. */

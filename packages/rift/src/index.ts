@@ -9,6 +9,18 @@
 
 export { migrate, rollback, appliedMigrations, RIFT_MIGRATIONS } from "./schema.js";
 export type { Migration } from "./schema.js";
+export {
+  STUDY_POLICY,
+  LeakageError,
+  assertNoLeakage,
+  assessEligibility,
+  canComputeDivergence,
+  canonicalJson,
+  hashCondition,
+  temporalClass,
+  verifyHeldFixed,
+} from "./policy.js";
+export type { ConditionRecord, EligibilityInput, TemporalClass } from "./policy.js";
 export type {
   AnswerType,
   Divergence,

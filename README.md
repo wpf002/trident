@@ -342,6 +342,35 @@ Rift **reads** Trident's `session_runs` and never writes to it. The link is a so
 reference by id, deliberately not a SQL foreign key, so Rift can never block,
 cascade into, or delay a Trident query.
 
+### Resolved design decisions
+
+Six issues surfaced during Phase 0 where the spec was unimplementable as
+written or would have produced a misleading result. Each is settled in code:
+
+| Issue | Decision |
+|---|---|
+| Leakage guard had nothing to compare against | Added `Resolution.event_at` (NOT NULL) — a resolution that can't state when its event occurred can't be recorded |
+| Nowhere to log held-fixed conditions | Added `prompt_hash`, `system_prompt_hash`, `sampling_params` per response |
+| "Same temperature" is impossible across providers — Trident sets none, and Claude Opus 5 rejects `temperature` outright | Policy is **identical across models within a query**, not equal to a global constant. All-unset satisfies it; the check still catches a future provider that starts sending params |
+| Trident's confidence is a **judge** pass, not self-report — and the judge is one of the measured models | Split into two columns: `stated_confidence` (true self-report, NULL unless elicited) and `judge_confidence` + `judge_model` (free but circular, and labeled as such in every report) |
+| BOOLEAN entropy at n=3 is effectively binary (3-0 → 0.0, 2-1 → 0.918) | `PREFERRED_PARTICIPANTS = 4`; Trident has four providers, so the third level is free. `MIN_PARTICIPANTS = 3` is the hard floor |
+| Clustering 3–4 points for OPEN is degenerate, and embeddings cost money | Mean pairwise embedding dispersion (no free parameters), **opt-in** via `RIFT_ENABLE_OPEN_DIVERGENCE=1` so §9's zero-added-cost holds by default |
+
+**The confidence baseline needs stating plainly in every report:** the free
+comparator is a Claude judge scoring all four models, including itself. That is
+circular. It is usable as a baseline only if labeled as judge-derived, never as
+self-reported confidence. Eliciting genuine self-reports changes the prompt and
+costs output tokens — available, but off by default.
+
+### Predictive vs. static questions
+
+The leakage guard applies to **predictive** queries only — those that declare
+`resolves_after`. For §5's "verifiable facts" category, the truth-determining
+event necessarily predates the ask (the capital of France was settled long ago),
+so a blanket guard would have excluded the entire category the spec wants for
+early volume. Static questions are still studied, but they measure **recall**,
+not **prediction**, and are stratified separately — never pooled with forecasts.
+
 ### Methodological guards (why the result would mean anything)
 
 - **Independence** — only parallel-mode runs enter the study set. Chained runs have
@@ -351,7 +380,8 @@ cascade into, or delay a Trident query.
   rejected. This is the easiest way to accidentally produce a beautiful,
   meaningless result.
 - **Held-fixed conditions** — prompt, system prompt, and sampling params are
-  recorded per response so the exclusion rule can be evaluated rather than assumed.
+  recorded per response and compared across models within a query, so the
+  exclusion rule is evaluated rather than assumed.
 - **Two predictors stay separate** — stated confidence is never folded into the
   divergence metric. They are the competitors in the evaluation.
 - **Correlated error is a first-class result** — these models share training data
@@ -375,7 +405,7 @@ method produced its number.
 
 ```bash
 npm run build:rift
-npm run test:rift          # includes the apply/reverse proof
+npm run test:rift          # 35 tests: apply/reverse proof + every §3 guard
 ```
 
 ```ts
@@ -388,10 +418,19 @@ appliedMigrations(db);     // => [1]
 rollback(db, 0);           // fully reverse — leaves zero trace
 ```
 
-The migration is reversible. `rollback(db, 0)` drops every `rift_` object
-including the migration ledger, restoring the database to its exact
-pre-migration schema. Verified against a copy of the live database with session
-records present.
+The migration is reversible, per-version. `rollback(db, 1)` reverses only v2;
+`rollback(db, 0)` drops every `rift_` object including the migration ledger,
+restoring the database to its exact pre-migration schema. Verified against a
+copy of the live database with session records present.
+
+The §3 guards are exported and unit-tested:
+
+```ts
+import { assessEligibility, assertNoLeakage, STUDY_POLICY } from "@trident/rift";
+
+assessEligibility({ mode, answerType, responses });  // => ExclusionReason | null
+assertNoLeakage(query, resolution);                  // throws LeakageError
+```
 
 ### Recording a resolution
 
