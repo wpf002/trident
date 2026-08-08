@@ -177,8 +177,12 @@ export async function handleSpineTool(name: string, args: Record<string, unknown
         );
       } catch (err) {
         if (err instanceof InvariantViolationError) {
-          return JSON.stringify(
-            {
+          // Rethrow so the dispatcher marks the response isError:true — this is a
+          // failed write, and the protocol should say so rather than returning a
+          // 200-shaped payload the model might skim past. The structured context
+          // rides along in the message so nothing is lost.
+          throw new Error(
+            JSON.stringify({
               error: "invariant_violation",
               message: err.message,
               invariant: {
@@ -190,9 +194,7 @@ export async function handleSpineTool(name: string, args: Record<string, unknown
               note:
                 "Nothing was written and the invariant is unchanged. Do not retry or work around this — " +
                 "tell the user their claim contradicts a locked invariant and let them decide.",
-            },
-            null,
-            2
+            })
           );
         }
         throw err;
