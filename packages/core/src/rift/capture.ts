@@ -1,15 +1,16 @@
 import { createHash } from "node:crypto";
 import type Database from "better-sqlite3";
-import { getDb, modelFor, onSessionRun, type SessionRunInput } from "@trident/core";
+import type { SessionRunInput } from "../db.js";
+import { modelFor } from "../models.js";
 import { migrate } from "./schema.js";
 import { assessEligibility, hashCondition, type ConditionRecord } from "./policy.js";
 import type { AnswerType, Domain, ExclusionReason } from "./types.js";
 
-// Capture layer (Phase 1).
+// Records each Trident run for disagreement tracking.
 //
-// §9 is absolute here: Rift never blocks or delays a Trident query, capture is
-// asynchronous, and failures are silent to the caller. Every function in this
-// file is written so the worst case is "no rift row", never "Trident broke".
+// Hard rule: this never blocks, delays, or fails a Trident query. Capture is
+// deferred and every failure is swallowed, so the worst case is a missing
+// row — never a broken run.
 
 /** Deterministic ids — capture is naturally idempotent, even under a race. */
 const queryId = (sessionId: string) =>
@@ -78,6 +79,20 @@ function judgeScores(metadata: unknown): Map<string, number> {
   return out;
 }
 
+/**
+ * Databases this process has already migrated. Capture is called on every
+ * session write, so the schema check has to be effectively free after the
+ * first one — but it must still happen, because nothing else installs the
+ * schema now that capture is invoked directly by core's logSessionRun.
+ */
+const migrated = new WeakSet<Database.Database>();
+
+function ensureSchema(db: Database.Database): void {
+  if (migrated.has(db)) return;
+  migrate(db);
+  migrated.add(db);
+}
+
 export interface CaptureResult {
   captured: boolean;
   queryId: string;
@@ -99,6 +114,7 @@ export interface CaptureResult {
  * population is auditable instead of invisible.
  */
 export function captureSessionRun(db: Database.Database, run: SessionRunInput): CaptureResult {
+  ensureSchema(db);
   const qid = queryId(run.id);
 
   const existing = db.prepare("SELECT id FROM rift_queries WHERE session_id = ?").get(run.id) as
@@ -198,7 +214,7 @@ export function captureBacklog(db: Database.Database, limit = 1000): {
   captured: number;
   alreadyCaptured: number;
 } {
-  migrate(db);
+  ensureSchema(db);
 
   const rows = db
     .prepare(
@@ -241,27 +257,22 @@ export function captureBacklog(db: Database.Database, limit = 1000): {
 }
 
 /**
- * Install live capture on Trident's session writes.
+ * Whether automatic capture is enabled. On by default — the study's binding
+ * constraint is sample size (§5), so opt-out beats opt-in.
  *
- * Deferred to the next tick and fully error-swallowed: a Trident query is never
- * blocked, delayed, or failed by Rift (§9). Anything missed here is recovered
- * by captureBacklog(). Returns an uninstall function.
+ * Set `RIFT_CAPTURE=0` (also accepts `false`/`off`/`no`) to disable. This is
+ * the kill switch: Rift is an experiment that may be rejected in Phase 6, and
+ * an experiment shipped to production needs a way to be switched off without a
+ * code change.
+ *
+ * Read at call time, not module load, so it can be toggled per process.
+ *
+ * Scope: this gates the AUTOMATIC path only. `captureSessionRun()` and
+ * `captureBacklog()` are explicit operator actions (`trident rift backfill`)
+ * and still run when disabled — if you deliberately invoke them, you mean it.
  */
-export function installCapture(db?: Database.Database): () => void {
-  const database = db ?? getDb();
-  try {
-    migrate(database);
-  } catch {
-    return () => {}; // cannot capture — stay silent, never throw at startup
-  }
-
-  return onSessionRun((run) => {
-    setImmediate(() => {
-      try {
-        captureSessionRun(database, run);
-      } catch {
-        /* silent by design — captureBacklog() is the recovery path */
-      }
-    });
-  });
+export function captureEnabled(): boolean {
+  const v = (process.env.RIFT_CAPTURE ?? "").trim().toLowerCase();
+  if (v === "") return true; // default ON
+  return !(v === "0" || v === "false" || v === "off" || v === "no");
 }

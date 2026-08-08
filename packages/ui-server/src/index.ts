@@ -37,16 +37,6 @@ const REPO_ROOT = path.resolve(__dirname, "../../..");
 
 dotenv.config({ path: path.join(REPO_ROOT, ".env") });
 
-// Rift capture: records parallel runs for the disagreement study. Registered
-// once at boot; capture is async and error-swallowed, so it can never block,
-// delay, or fail a Trident query (§9).
-try {
-  const { installCapture } = await import("@trident/rift");
-  installCapture();
-} catch {
-  /* rift unavailable — Trident continues unaffected */
-}
-
 const PORT = parseInt(process.env.PORT ?? process.env.TRIDENT_UI_PORT ?? "4242", 10);
 const HOST = process.env.HOST ?? "0.0.0.0";
 const STATIC_DIR = path.join(__dirname, "..", "static");

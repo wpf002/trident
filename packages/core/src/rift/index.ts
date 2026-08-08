@@ -1,11 +1,10 @@
-// @trident/rift — a measurement instrument.
+// Rift — Trident's disagreement tracking.
 //
-// Hypothesis under test: disagreement across independently-queried models
-// predicts whether an answer is wrong better than any individual model's
-// self-reported confidence.
+// Records how much the models disagreed on each parallel run, so that
+// disagreement can later be tested as an error signal. Capture only for now:
+// no metrics, no scoring, and no effect on how Trident answers anything.
 //
-// Phase 1: schema + capture. No divergence metrics, no scoring, no routing.
-// Routing behavior is gated on the Phase 6 verdict — see HYPOTHESIS.md.
+// See docs/rift-hypothesis.md for what's being measured and why.
 
 export { migrate, rollback, appliedMigrations, RIFT_MIGRATIONS } from "./schema.js";
 export type { Migration } from "./schema.js";
@@ -21,7 +20,7 @@ export {
   verifyHeldFixed,
 } from "./policy.js";
 export type { ConditionRecord, EligibilityInput, TemporalClass } from "./policy.js";
-export { captureSessionRun, captureBacklog, installCapture } from "./capture.js";
+export { captureSessionRun, captureBacklog, captureEnabled } from "./capture.js";
 export type { CaptureResult, RiftTag } from "./capture.js";
 export type {
   AnswerType,

@@ -1,9 +1,8 @@
 import chalk from "chalk";
-import { getDb } from "@trident/core";
-import { captureBacklog, migrate, STUDY_POLICY } from "@trident/rift";
+import { getDb, captureBacklog, migrate, STUDY_POLICY, captureEnabled } from "@trident/core";
 
-// Phase 1 operator surface. Resolution (`rift resolve`) is Phase 3; scoring is
-// Phase 4. Nothing here computes a divergence metric or a verdict.
+// Reports what's been captured. Nothing here computes a divergence metric or
+// changes how Trident answers anything.
 
 interface CountRow {
   k: string | null;
@@ -70,13 +69,14 @@ export function riftStatus() {
   );
   console.log(`  ${resolved}/${POOLED_MIN}  ${chalk.gray(`${pct}%`)}`);
   if (resolved < POOLED_MIN) {
-    console.log(chalk.gray(`  No claim may be made below ${POOLED_MIN}. See packages/rift/HYPOTHESIS.md`));
+    console.log(chalk.gray(`  No claim may be made below ${POOLED_MIN}. See docs/rift-hypothesis.md`));
   }
 
   console.log(
     chalk.gray(
       `\n  Policy: min ${STUDY_POLICY.MIN_PARTICIPANTS} participants, prefer ${STUDY_POLICY.PREFERRED_PARTICIPANTS}. ` +
-        `OPEN divergence ${STUDY_POLICY.OPEN_DIVERGENCE_ENABLED ? "enabled" : "disabled (costs embeddings)"}.\n`
+        `OPEN divergence ${STUDY_POLICY.OPEN_DIVERGENCE_ENABLED ? "enabled" : "disabled (costs embeddings)"}. ` +
+        `Capture ${captureEnabled() ? "ON" : "OFF (RIFT_CAPTURE)"}.\n`
     )
   );
 }

@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { captureEnabled, captureSessionRun } from "./rift/capture.js";
 
 // Single source of truth for the shared session_runs store. Every package
 // (cli, ui-server, scheduler) goes through this module so the schema, indexes,
@@ -135,8 +136,8 @@ export type SessionRunObserver = (run: SessionRunInput) => void;
 const sessionRunObservers: SessionRunObserver[] = [];
 
 /**
- * Subscribe to session writes. Used by @trident/rift to capture runs for the
- * disagreement study without core depending on rift.
+ * Subscribe to session writes. A general extension point — Rift's own
+ * capture runs directly from logSessionRun, not through this.
  *
  * Observers are called AFTER the write commits and their errors are swallowed —
  * an observer must never fail, slow, or roll back a Trident session write.
@@ -194,6 +195,31 @@ export function logSessionRun(run: SessionRunInput): void {
       /* observers are strictly best-effort — see onSessionRun */
     }
   }
+
+  // Rift capture. Because rift lives inside core, every entry point (CLI, UI
+  // server, scheduler) gets capture with no wiring of its own.
+  captureSessionRunSafely(run);
+}
+
+/**
+ * Fire-and-forget Rift capture.
+ *
+ * setImmediate keeps it out of the caller's critical path, and the body is
+ * fully synchronous so it completes before a short-lived process (the CLI)
+ * exits — an `await import()` here would leave a pending promise that does not
+ * keep the event loop alive, and capture would silently never run. Every
+ * failure is swallowed: a Trident session write is never blocked, delayed, or
+ * failed by Rift. Disable entirely with RIFT_CAPTURE=0.
+ */
+function captureSessionRunSafely(run: SessionRunInput): void {
+  if (!captureEnabled()) return;
+  setImmediate(() => {
+    try {
+      captureSessionRun(getDb(), run);
+    } catch {
+      /* silent by design — `trident rift backfill` is the recovery path */
+    }
+  });
 }
 
 export function clearSessionRuns(): number {

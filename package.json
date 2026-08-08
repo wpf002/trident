@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace=packages/core && npm run build --workspace=packages/spine && npm run build --workspace=packages/rift && npm run build --workspace=packages/mcp-server && npm run build --workspace=packages/scheduler && npm run build --workspace=packages/ui-server && npm run build --workspace=packages/ui && npm run build --workspace=packages/cli",
+    "build": "npm run build --workspace=packages/core && npm run build --workspace=packages/spine && npm run build --workspace=packages/mcp-server && npm run build --workspace=packages/scheduler && npm run build --workspace=packages/ui-server && npm run build --workspace=packages/ui && npm run build --workspace=packages/cli",
     "build:server": "npm run build --workspace=packages/mcp-server",
     "build:spine": "npm run build --workspace=packages/spine",
     "test:spine": "npm run test --workspace=packages/spine",
@@ -19,8 +19,8 @@
     "start:server": "npm run start --workspace=packages/mcp-server",
     "start:ui": "npm run start --workspace=packages/ui-server",
     "schedule:daemon": "node packages/scheduler/dist/index.js daemon",
-    "build:rift": "npm run build --workspace=packages/rift",
-    "test:rift": "npm run test --workspace=packages/rift"
+    "test:rift": "npm run test --workspace=packages/core",
+    "test:core": "npm run test --workspace=packages/core"
   },
   "engines": {
     "node": ">=18.0.0"

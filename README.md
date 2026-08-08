@@ -404,13 +404,13 @@ method produced its number.
 ### Running the migration
 
 ```bash
-npm run build:rift
-npm run test:rift          # 50 tests: migration, §3 guards, capture
+npm run build --workspace=packages/core
+npm run test:core          # 50 tests: migration, §3 guards, capture
 ```
 
 ```ts
 import Database from "better-sqlite3";
-import { migrate, rollback, appliedMigrations } from "@trident/rift";
+import { migrate, rollback, appliedMigrations } from "@trident/core";
 
 const db = new Database("data/trident.db");
 migrate(db);               // apply pending migrations (idempotent)
@@ -426,7 +426,7 @@ copy of the live database with session records present.
 The §3 guards are exported and unit-tested:
 
 ```ts
-import { assessEligibility, assertNoLeakage, STUDY_POLICY } from "@trident/rift";
+import { assessEligibility, assertNoLeakage, STUDY_POLICY } from "@trident/core";
 
 assessEligibility({ mode, answerType, responses });  // => ExclusionReason | null
 assertNoLeakage(query, resolution);                  // throws LeakageError
@@ -436,13 +436,11 @@ assertNoLeakage(query, resolution);                  // throws LeakageError
 
 Capture is installed once at boot and records every Trident session:
 
-```ts
-import { installCapture } from "@trident/rift";
-installCapture();     // already wired into ui-server and the CLI
-```
+Nothing to wire. Rift lives inside `@trident/core`, so every entry point — CLI,
+UI server, scheduler — captures automatically the moment a session is written.
 
-It is registered as an observer on Trident's session writes, runs on the next
-tick, and swallows every error — a Trident query is never blocked, delayed, or
+It runs on the next tick after the session write commits, and swallows every
+error — a Trident query is never blocked, delayed, or
 failed by Rift (§9). Anything a silent failure drops is recovered by the sweep:
 
 ```bash
@@ -465,7 +463,7 @@ Untagged runs default to `GENERAL`/`OPEN`. Tag explicitly at query time:
 
 ### Preregistration
 
-[`packages/rift/HYPOTHESIS.md`](packages/rift/HYPOTHESIS.md) is **sealed**. It
+[`docs/rift-hypothesis.md`](docs/rift-hypothesis.md) is **sealed**. It
 fixes the outcome variable, the primary metric (AUROC of divergence predicting
 `plurality_wrong`), the baselines, the per-domain minimum sample sizes, the
 numeric tolerances, and the exact conditions under which the hypothesis is

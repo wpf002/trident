@@ -1,14 +1,16 @@
 {
   "name": "@trident/core",
   "version": "1.0.0",
-  "description": "Shared primitives for Trident — AI clients, chain presets, types",
+  "description": "Shared primitives for Trident \u2014 AI clients, chain presets, types",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
@@ -18,6 +20,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.11.5",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
   }
 }
