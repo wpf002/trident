@@ -308,7 +308,7 @@ trident/
 
 ## Rift — disagreement as an error signal
 
-**Status: Phase 0 (schema only). This is a measurement instrument, not a feature.**
+**Status: Phase 1 (capture). This is a measurement instrument, not a feature.**
 
 Trident already runs multiple models in parallel and scores them. When they
 disagree, it resolves the disagreement and throws it away. Rift keeps it.
@@ -405,7 +405,7 @@ method produced its number.
 
 ```bash
 npm run build:rift
-npm run test:rift          # 35 tests: apply/reverse proof + every §3 guard
+npm run test:rift          # 50 tests: migration, §3 guards, capture
 ```
 
 ```ts
@@ -431,6 +431,50 @@ import { assessEligibility, assertNoLeakage, STUDY_POLICY } from "@trident/rift"
 assessEligibility({ mode, answerType, responses });  // => ExclusionReason | null
 assertNoLeakage(query, resolution);                  // throws LeakageError
 ```
+
+### Capture (Phase 1)
+
+Capture is installed once at boot and records every Trident session:
+
+```ts
+import { installCapture } from "@trident/rift";
+installCapture();     // already wired into ui-server and the CLI
+```
+
+It is registered as an observer on Trident's session writes, runs on the next
+tick, and swallows every error — a Trident query is never blocked, delayed, or
+failed by Rift (§9). Anything a silent failure drops is recovered by the sweep:
+
+```bash
+trident rift status      # capture stats, study set, exclusions, progress to n≥500
+trident rift backfill    # capture sessions Rift hasn't recorded yet
+```
+
+**Chained runs are captured, not dropped** — recorded with
+`exclusion_reason = 'CHAINED'` so the excluded population stays auditable.
+
+**Rift never classifies with a model.** Inferring domain or answer type would
+cost inference (§9) and make the study's own classification model-dependent.
+Untagged runs default to `GENERAL`/`OPEN`. Tag explicitly at query time:
+
+```jsonc
+// metadata on a Trident session
+{ "rift": { "domain": "RACING", "answerType": "CATEGORICAL",
+            "resolvesAfter": "2026-03-02T00:00:00Z", "studyable": true } }
+```
+
+### Preregistration
+
+[`packages/rift/HYPOTHESIS.md`](packages/rift/HYPOTHESIS.md) is **sealed**. It
+fixes the outcome variable, the primary metric (AUROC of divergence predicting
+`plurality_wrong`), the baselines, the per-domain minimum sample sizes, the
+numeric tolerances, and the exact conditions under which the hypothesis is
+rejected — all before any data is scored. It is never revised after seeing
+results; it is superseded by a new file, with the old one kept.
+
+It also carries the **correlated-error veto**: if >20% of the lowest-divergence
+tercile is wrong, the signal is declared unusable for gating *regardless of
+AUROC*.
 
 ### Recording a resolution
 

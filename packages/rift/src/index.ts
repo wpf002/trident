@@ -4,8 +4,8 @@
 // predicts whether an answer is wrong better than any individual model's
 // self-reported confidence.
 //
-// Phase 0 (this commit) is schema only. No capture, no metrics, no routing.
-// Routing behavior is gated on Phase 6 — see README.
+// Phase 1: schema + capture. No divergence metrics, no scoring, no routing.
+// Routing behavior is gated on the Phase 6 verdict — see HYPOTHESIS.md.
 
 export { migrate, rollback, appliedMigrations, RIFT_MIGRATIONS } from "./schema.js";
 export type { Migration } from "./schema.js";
@@ -21,6 +21,8 @@ export {
   verifyHeldFixed,
 } from "./policy.js";
 export type { ConditionRecord, EligibilityInput, TemporalClass } from "./policy.js";
+export { captureSessionRun, captureBacklog, installCapture } from "./capture.js";
+export type { CaptureResult, RiftTag } from "./capture.js";
 export type {
   AnswerType,
   Divergence,

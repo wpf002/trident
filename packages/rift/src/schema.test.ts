@@ -121,8 +121,10 @@ describe("migration — reverses clean", () => {
     migrate(db);
     expect(appliedMigrations(db)).toEqual(ALL);
 
-    // Reverse only v2 — the judge_confidence columns go, the tables stay.
-    expect(rollback(db, 1)).toEqual([2]);
+    // Reverse everything above v1, newest first. The judge_confidence columns
+    // go; the v1 tables stay.
+    const aboveV1 = ALL.filter((v) => v > 1).sort((a, b) => b - a);
+    expect(rollback(db, 1)).toEqual(aboveV1);
     expect(appliedMigrations(db)).toEqual([1]);
 
     const cols = (

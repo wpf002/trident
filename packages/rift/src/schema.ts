@@ -122,6 +122,20 @@ export const RIFT_MIGRATIONS: Migration[] = [
       ALTER TABLE rift_model_responses DROP COLUMN judge_confidence;
     `,
   },
+  {
+    version: 3,
+    name: "one-query-per-session",
+    // Capture runs both live (observer) and as a backlog sweep, and the sweep
+    // may race the observer. A unique index makes double-capture impossible at
+    // the database level rather than relying on the caller checking first.
+    up: `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_rift_queries_session_unique
+        ON rift_queries(session_id);
+    `,
+    down: `
+      DROP INDEX IF EXISTS idx_rift_queries_session_unique;
+    `,
+  },
 ];
 
 function ensureLedger(db: Database.Database): void {

@@ -12,6 +12,7 @@ import { routeDetect, routeList } from "./commands/route.js";
 import { configShow } from "./commands/config.js";
 import { scheduleList, scheduleRun, scheduleDaemon } from "@trident/scheduler";
 import { googleLogin, googleStatus } from "./commands/google.js";
+import { riftStatus, riftBackfill } from "./commands/rift.js";
 import {
   spineAssert,
   spineLock,
@@ -336,5 +337,22 @@ spine
   .command("history <claimId>")
   .description("Show a claim's lineage, conflicts, and the questions it answers")
   .action(spineHistory);
+
+// ─── rift ────────────────────────────────────────────────────────────────────
+
+const rift = program
+  .command("rift")
+  .description("Disagreement study — capture status and backfill (Phase 1)");
+
+rift
+  .command("status")
+  .description("Capture stats, study-set size, exclusions, and progress toward the preregistered n")
+  .action(riftStatus);
+
+rift
+  .command("backfill")
+  .description("Capture any Trident sessions Rift hasn't recorded yet")
+  .option("-l, --limit <n>", "Max sessions to sweep", "1000")
+  .action(riftBackfill);
 
 program.parseAsync(process.argv);

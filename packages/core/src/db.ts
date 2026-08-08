@@ -128,6 +128,28 @@ function parseRow(row: SessionRunRow): SessionRunRecord {
 
 // ─── Writes ──────────────────────────────────────────────────────────────────
 
+// ─── Observers ───────────────────────────────────────────────────────────────
+
+export type SessionRunObserver = (run: SessionRunInput) => void;
+
+const sessionRunObservers: SessionRunObserver[] = [];
+
+/**
+ * Subscribe to session writes. Used by @trident/rift to capture runs for the
+ * disagreement study without core depending on rift.
+ *
+ * Observers are called AFTER the write commits and their errors are swallowed —
+ * an observer must never fail, slow, or roll back a Trident session write.
+ * Returns an unsubscribe function.
+ */
+export function onSessionRun(observer: SessionRunObserver): () => void {
+  sessionRunObservers.push(observer);
+  return () => {
+    const i = sessionRunObservers.indexOf(observer);
+    if (i >= 0) sessionRunObservers.splice(i, 1);
+  };
+}
+
 export function logSessionRun(run: SessionRunInput): void {
   const db = getDb();
   // Upsert by id: one-shot runs use a fresh id (plain insert); interactive
@@ -163,6 +185,15 @@ export function logSessionRun(run: SessionRunInput): void {
     run.started_at,
     run.finished_at
   );
+
+  // Notify observers after the write commits. Never let one break the write.
+  for (const observer of sessionRunObservers) {
+    try {
+      observer(run);
+    } catch {
+      /* observers are strictly best-effort — see onSessionRun */
+    }
+  }
 }
 
 export function clearSessionRuns(): number {
