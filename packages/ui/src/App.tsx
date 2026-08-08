@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SessionsView } from "./components/SessionsView.js";
 import { QueryView } from "./components/QueryView.js";
 import { Brand } from "./components/Brand.js";
@@ -64,6 +64,7 @@ function TokenGate({ onUnlock }: { onUnlock: () => void }) {
 
 export function App() {
   const [tab, setTab] = useState<Tab>("query");
+  const mainRef = useRef<HTMLElement>(null);
   const [auth, setAuth] = useState<AuthState>("checking");
 
   // Determine whether the server requires a token, and whether the stored one
@@ -104,6 +105,13 @@ export function App() {
 
   const showLock = auth === "unlocked";
 
+  // Views stay mounted (see below), so the scroll container keeps the previous
+  // tab's offset when switching. Reset it so a tab always opens at the top.
+  const goToTab = (next: Tab) => {
+    setTab(next);
+    mainRef.current?.scrollTo({ top: 0 });
+  };
+
   // All views stay mounted; we toggle visibility with `view-hidden` so
   // in-progress state (streaming runs, form values) survives tab switches.
   return (
@@ -112,13 +120,13 @@ export function App() {
         <Brand />
         <button
           className={"nav-item" + (tab === "query" ? " active" : "")}
-          onClick={() => setTab("query")}
+          onClick={() => goToTab("query")}
         >
           Chat
         </button>
         <button
           className={"nav-item" + (tab === "sessions" ? " active" : "")}
-          onClick={() => setTab("sessions")}
+          onClick={() => goToTab("sessions")}
         >
           History
         </button>
@@ -134,7 +142,7 @@ export function App() {
           </button>
         )}
       </aside>
-      <main className="main">
+      <main className="main" ref={mainRef}>
         <div className={"view" + (tab !== "query" ? " view-hidden" : "")}>
           <QueryView />
         </div>
