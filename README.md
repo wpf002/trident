@@ -306,6 +306,114 @@ trident/
 
 ---
 
+## Rift — disagreement as an error signal
+
+**Status: Phase 0 (schema only). This is a measurement instrument, not a feature.**
+
+Trident already runs multiple models in parallel and scores them. When they
+disagree, it resolves the disagreement and throws it away. Rift keeps it.
+
+### The hypothesis under test
+
+> Disagreement across independently-queried models predicts whether an answer is
+> wrong better than any individual model's self-reported confidence.
+
+If it holds, disagreement entropy becomes a routing signal in Trident, a risk
+gate downstream, and a confidence surface for other apps. If it doesn't, Rift is
+killed and the kill is written down.
+
+**No routing behavior is built until the scoring has run on real resolved data at
+the preregistered sample size.** Phases 1–6 are measurement; Phase 7 is the only
+phase that changes how Trident behaves, and it is gated on the Phase 6 verdict.
+
+### What Rift stores
+
+Five tables, all `rift_`-prefixed, in Trident's existing SQLite database:
+
+| Table | Holds |
+|---|---|
+| `rift_queries` | One row per studied run — domain, answer type, prompt, `asked_at`, isolation flag, exclusion reason |
+| `rift_model_responses` | Per-model answer, parsed value, latency, token cost, and the conditions it ran under |
+| `rift_divergence` | The 0–1 disagreement metric, which method produced it, and how many models participated |
+| `rift_resolutions` | Ground truth, its source, and **when the determining event occurred** |
+| `rift_scoring` | Per-model correctness once truth is known |
+
+Rift **reads** Trident's `session_runs` and never writes to it. The link is a soft
+reference by id, deliberately not a SQL foreign key, so Rift can never block,
+cascade into, or delay a Trident query.
+
+### Methodological guards (why the result would mean anything)
+
+- **Independence** — only parallel-mode runs enter the study set. Chained runs have
+  contaminated disagreement by construction and are excluded (`CHAINED`).
+- **No leakage** — a resolution records `event_at`, the time the truth-determining
+  event actually happened. Any resolution whose event predates `asked_at` is
+  rejected. This is the easiest way to accidentally produce a beautiful,
+  meaningless result.
+- **Held-fixed conditions** — prompt, system prompt, and sampling params are
+  recorded per response so the exclusion rule can be evaluated rather than assumed.
+- **Two predictors stay separate** — stated confidence is never folded into the
+  divergence metric. They are the competitors in the evaluation.
+- **Correlated error is a first-class result** — these models share training data
+  and can agree confidently while all being wrong. The rate of
+  *low-divergence-but-wrong* outcomes is reported prominently, not as a footnote.
+  If that rate is high the signal is unusable regardless of the headline number.
+
+### Divergence is computed per answer type
+
+Never compare divergence values across answer types. Every query records which
+method produced its number.
+
+| Answer type | Method |
+|---|---|
+| `BOOLEAN` / `CATEGORICAL` | Normalized Shannon entropy over the answer distribution |
+| `NUMERIC` | Median absolute deviation over the median (not SD/mean — too fragile at n=3) |
+| `ORDINAL` | Kendall's W, inverted so higher means more disagreement |
+| `OPEN` | Embedding dispersion. A model-as-judge is **never** the primary method — using a model to measure model disagreement is circular |
+
+### Running the migration
+
+```bash
+npm run build:rift
+npm run test:rift          # includes the apply/reverse proof
+```
+
+```ts
+import Database from "better-sqlite3";
+import { migrate, rollback, appliedMigrations } from "@trident/rift";
+
+const db = new Database("data/trident.db");
+migrate(db);               // apply pending migrations (idempotent)
+appliedMigrations(db);     // => [1]
+rollback(db, 0);           // fully reverse — leaves zero trace
+```
+
+The migration is reversible. `rollback(db, 0)` drops every `rift_` object
+including the migration ledger, restoring the database to its exact
+pre-migration schema. Verified against a copy of the live database with session
+records present.
+
+### Recording a resolution
+
+*Phase 3 — not yet built.* Manual resolution will be `trident rift resolve`;
+automated resolvers run on a daemon against `resolves_after`, fastest-clock-first
+(sports and racing daily, then verifiable facts, then financial forecasts).
+
+### Reading the scoring output
+
+*Phase 4 — not yet built.* Each scoring run emits a signed report artifact: AUC,
+Brier score, and log loss for divergence vs. mean stated confidence vs.
+most-confident-model vs. a constant baseline, with reliability diagrams,
+stratified by domain and answer type, and the low-divergence-but-wrong rate.
+
+### Storage note
+
+SQLite, matching the rest of Trident. The Postgres path is a straightforward
+port — no SQLite-specific features are used beyond `datetime('now')` defaults —
+but it is not taken yet.
+
+---
+
 ## License
 
 MIT
