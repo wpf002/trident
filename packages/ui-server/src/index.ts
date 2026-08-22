@@ -15,6 +15,11 @@ import {
   logSessionRun,
   providers,
   configuredProviderIds,
+  listKeyStatus,
+  setApiKey,
+  deleteApiKey,
+  applyStoredKeys,
+  keystoreInfo,
   clearSessionRuns,
   deleteSessionRun,
   aiLabel,
@@ -38,6 +43,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
 
 dotenv.config({ path: path.join(REPO_ROOT, ".env") });
+
+// Keys saved in Settings override .env. Applied before anything can make a
+// provider call, so a key added in the UI works without a restart.
+try {
+  applyStoredKeys();
+} catch {
+  /* never block startup over the key store */
+}
 
 const PORT = parseInt(process.env.PORT ?? process.env.TRIDENT_UI_PORT ?? "4242", 10);
 const HOST = process.env.HOST ?? "0.0.0.0";
@@ -169,6 +182,39 @@ app.get("/api/auth/check", (_req: Request, res: Response) => {
 // interactive, step-by-step chain.
 app.get("/api/presets", (_req: Request, res: Response) => {
   res.json({ presets: CHAIN_PRESETS });
+});
+
+// ─── API keys (Settings) ─────────────────────────────────────────────────────
+// Raw key values are never returned — only a mask like "sk-ant-…9f2a".
+
+app.get("/api/keys", (_req: Request, res: Response) => {
+  res.json({ keys: listKeyStatus(), store: keystoreInfo() });
+});
+
+app.put("/api/keys/:id", (req: Request, res: Response) => {
+  const value = (req.body as { value?: unknown })?.value;
+  if (typeof value !== "string" || !value.trim()) {
+    res.status(400).json({ error: "value must be a non-empty string" });
+    return;
+  }
+  try {
+    const status = setApiKey(req.params.id, value);
+    // Log the provider only — never the key, not even masked.
+    audit("api_key_set", req, { provider: req.params.id });
+    res.json({ key: status });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/keys/:id", (req: Request, res: Response) => {
+  try {
+    const status = deleteApiKey(req.params.id);
+    audit("api_key_deleted", req, { provider: req.params.id });
+    res.json({ key: status });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 // Which models this instance can actually use. Driven by the provider registry,

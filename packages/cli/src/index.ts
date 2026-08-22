@@ -29,6 +29,15 @@ import { resolveMode } from "./lib/config.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
+// Keys saved in the UI's Settings page override .env for the CLI too, so both
+// surfaces agree on which credentials are in use.
+try {
+  const { applyStoredKeys } = await import("@trident/core");
+  applyStoredKeys();
+} catch {
+  /* never block the CLI over the key store */
+}
+
 const program = new Command();
 
 program

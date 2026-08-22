@@ -1417,3 +1417,61 @@ a:hover {
   color: var(--gold);
   background: none;
 }
+
+/* ─── Settings: API keys ──────────────────────────────────────────────────── */
+
+.key-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+}
+.key-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.key-mask {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px 9px;
+  letter-spacing: 0.02em;
+}
+.key-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.key-badge.saved {
+  color: var(--green);
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(52, 211, 153, 0.1);
+}
+.key-badge.env {
+  color: var(--blue-bright);
+  border-color: rgba(79, 141, 240, 0.45);
+  background: var(--blue-soft);
+}
+.key-badge.none {
+  color: var(--text-faint);
+  border-color: var(--border);
+  background: var(--bg);
+}
+.key-row code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}

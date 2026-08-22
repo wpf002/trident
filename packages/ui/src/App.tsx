@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SessionsView } from "./components/SessionsView.js";
 import { QueryView } from "./components/QueryView.js";
+import { SettingsView } from "./components/SettingsView.js";
 import { Brand } from "./components/Brand.js";
 import {
   fetchAuthStatus,
@@ -10,7 +11,7 @@ import {
   validateToken,
 } from "./lib/api.js";
 
-type Tab = "query" | "sessions";
+type Tab = "query" | "sessions" | "settings";
 type AuthState = "checking" | "open" | "locked" | "unlocked";
 
 function TokenGate({ onUnlock }: { onUnlock: () => void }) {
@@ -130,6 +131,12 @@ export function App() {
         >
           History
         </button>
+        <button
+          className={"nav-item" + (tab === "settings" ? " active" : "")}
+          onClick={() => goToTab("settings")}
+        >
+          Settings
+        </button>
         {showLock && (
           <button
             className="nav-item sign-out"
@@ -148,6 +155,9 @@ export function App() {
         </div>
         <div className={"view" + (tab !== "sessions" ? " view-hidden" : "")}>
           <SessionsView active={tab === "sessions"} />
+        </div>
+        <div className={"view" + (tab !== "settings" ? " view-hidden" : "")}>
+          <SettingsView active={tab === "settings"} />
         </div>
       </main>
     </div>

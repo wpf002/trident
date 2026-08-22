@@ -17,3 +17,6 @@ credentials.json
 
 # Local provider config (copy from trident.providers.example.json)
 trident.providers.json
+
+# User API keys (encrypted, never committed)
+data/api-keys.json
