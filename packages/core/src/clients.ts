@@ -1,23 +1,22 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { modelFor, ModelTier } from "./models.js";
+import { getProvider, providerIds, providers } from "./providers.js";
 import type { AIMessage, AIName, AIResponse } from "./clients-types.js";
 
 export type { AIMessage, AIName, AIResponse } from "./clients-types.js";
 export type { ModelTier } from "./models.js";
 
-export const VALID_AIS: ReadonlySet<AIName> = new Set<AIName>(["claude", "gpt", "perplexity", "gemini"]);
-export const DEFAULT_ORDER: AIName[] = ["claude", "gpt", "perplexity", "gemini"];
-export const AI_LABELS: Record<AIName, string> = {
-  claude: "Claude",
-  gpt: "ChatGPT",
-  perplexity: "Perplexity",
-  gemini: "Gemini",
-};
+/** Every provider the registry knows about, built-in or configured. */
+export const VALID_AIS: ReadonlySet<AIName> = new Set<AIName>(providerIds());
+export const DEFAULT_ORDER: AIName[] = providerIds();
+export const AI_LABELS: Record<string, string> = Object.fromEntries(
+  [...providers().values()].map((p) => [p.id, p.label])
+);
 
 /** Human label for an AI name, falling back to upper-case for unknown values. */
 export function aiLabel(ai: string): string {
-  return (AI_LABELS as Record<string, string>)[ai] ?? ai.toUpperCase();
+  return getProvider(ai)?.label ?? AI_LABELS[ai] ?? ai.toUpperCase();
 }
 
 // ─── Call options ────────────────────────────────────────────────────────────
@@ -42,12 +41,9 @@ export interface CallOptions {
 // Per-provider hard ceiling on output tokens. Requests are clamped to these so
 // a high default/override never trips a provider "max_tokens too large" error.
 // Conservative values that current flagship models all support.
-const MAX_OUTPUT_TOKENS: Record<AIName, number> = {
-  claude: 16384,
-  gpt: 16384,
-  perplexity: 8192,
-  gemini: 16384,
-};
+function maxOutputFor(ai: AIName): number {
+  return getProvider(String(ai))?.maxOutputTokens ?? 8192;
+}
 
 /** Back-compat alias — older code passed only `{ tokens, signal }`. */
 export type StreamOptions = CallOptions;
@@ -73,7 +69,7 @@ function resolveMaxTokens(ai: AIName, opts: CallOptions | undefined): number {
     }
   }
   // Never exceed what the provider allows.
-  return Math.min(n, MAX_OUTPUT_TOKENS[ai]);
+  return Math.min(n, maxOutputFor(ai));
 }
 
 // Pull source URLs out of a provider response/chunk. Perplexity returns a
@@ -283,12 +279,20 @@ export const callGemini = (m: AIMessage[], s?: string, opts?: CallOptions) =>
     opts
   );
 
-export const AI_MAP: Record<
-  AIName,
-  (m: AIMessage[], s?: string, opts?: CallOptions) => Promise<AIResponse>
-> = {
-  claude: callClaude,
-  gpt: callGPT,
-  perplexity: callPerplexity,
-  gemini: callGemini,
-};
+export type AICaller = (m: AIMessage[], s?: string, opts?: CallOptions) => Promise<AIResponse>;
+
+/**
+ * Callable for every registered provider. Built-ins keep their dedicated
+ * functions; anything configured in trident.providers.json is dispatched
+ * through the shared OpenAI-compatible client using its own baseURL and key.
+ */
+export const AI_MAP: Record<string, AICaller> = Object.fromEntries(
+  [...providers().values()].map((p): [string, AICaller] => {
+    if (p.transport === "anthropic") return [p.id, callClaude];
+    return [
+      p.id,
+      (m: AIMessage[], sys?: string, opts?: CallOptions) =>
+        callOpenAICompatible(p.id, p.baseURL, p.apiKeyEnv, m, sys, opts),
+    ];
+  })
+);

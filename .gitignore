@@ -14,3 +14,6 @@ credentials.json
 *.d.ts
 .DS_Store
 .claude/launch.json
+
+# Local provider config (copy from trident.providers.example.json)
+trident.providers.json

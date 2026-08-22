@@ -10,6 +10,7 @@
 // Override any model via env var, e.g. TRIDENT_CLAUDE_MAIN_MODEL=...
 
 import { AIName } from "./clients-types.js";
+import { getProvider, providerIds } from "./providers.js";
 
 export type ModelTier = "premium" | "main" | "utility";
 
@@ -63,14 +64,24 @@ const ENV_KEYS: Record<AIName, Record<ModelTier, string>> = {
   },
 };
 
+/** Env override key for a provider/tier, e.g. TRIDENT_GROK_MAIN_MODEL. */
+function envKeyFor(ai: AIName, tier: ModelTier): string {
+  const known = ENV_KEYS[ai as keyof typeof ENV_KEYS];
+  if (known) return known[tier];
+  return `TRIDENT_${String(ai).toUpperCase().replace(/[^A-Z0-9]/g, "_")}_${tier.toUpperCase()}_MODEL`;
+}
+
 export function modelFor(ai: AIName, tier: ModelTier = "main"): string {
-  const override = process.env[ENV_KEYS[ai][tier]];
-  return override && override.trim().length > 0 ? override.trim() : DEFAULTS[ai][tier];
+  const override = process.env[envKeyFor(ai, tier)];
+  if (override && override.trim().length > 0) return override.trim();
+  const spec = getProvider(String(ai));
+  if (spec) return spec.models[tier];
+  return DEFAULTS[ai as keyof typeof DEFAULTS]?.[tier] ?? "";
 }
 
 export function listModels(): Array<{ ai: AIName; tier: ModelTier; model: string }> {
   const out: Array<{ ai: AIName; tier: ModelTier; model: string }> = [];
-  for (const ai of ["claude", "gpt", "perplexity", "gemini"] as AIName[]) {
+  for (const ai of providerIds()) {
     for (const tier of ["premium", "main", "utility"] as ModelTier[]) {
       out.push({ ai, tier, model: modelFor(ai, tier) });
     }

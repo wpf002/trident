@@ -2,7 +2,11 @@
 // clients.ts (runtime, depends on models.ts) and models.ts (compile-time
 // type reference).
 
-export type AIName = "claude" | "gpt" | "perplexity" | "gemini";
+/**
+ * Built-in providers keep autocomplete; `(string & {})` lets a provider
+ * configured in trident.providers.json be used everywhere a built-in can.
+ */
+export type AIName = "claude" | "gpt" | "perplexity" | "gemini" | (string & {});
 
 export interface AIMessage {
   role: "user" | "assistant";

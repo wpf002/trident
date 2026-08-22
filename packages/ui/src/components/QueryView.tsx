@@ -60,7 +60,17 @@ interface RunState {
 
 type Tier = "premium" | "main" | "utility";
 
-const ALL_AIS: AIName[] = ["claude", "gpt", "perplexity", "gemini"];
+/** Fallback if /api/providers is unreachable — the built-in four. */
+const FALLBACK_AIS: AIName[] = ["claude", "gpt", "perplexity", "gemini"];
+
+interface ProviderInfo {
+  id: AIName;
+  label: string;
+  color: string;
+  builtIn: boolean;
+  configured: boolean;
+  apiKeyEnv: string;
+}
 interface RawResponseEvent {
   ai: AIName;
   content?: string;
@@ -84,7 +94,8 @@ interface StartEvent {
 export function QueryView() {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<"parallel" | "chain">("parallel");
-  const [ais, setAis] = useState<AIName[]>([...ALL_AIS]);
+  const [ais, setAis] = useState<AIName[]>([...FALLBACK_AIS]);
+  const [availableAis, setAvailableAis] = useState<ProviderInfo[]>([]);
   const [preset, setPreset] = useState<string>("");
   const [system, setSystem] = useState("");
   const [tier, setTier] = useState<Tier>("main");
@@ -98,7 +109,35 @@ export function QueryView() {
       .then((r) => (r.ok ? r.json() : { presets: {} }))
       .then((d) => setPresets(d.presets ?? {}))
       .catch(() => {});
+
+    // Providers are server-driven, so a backend configured in
+    // trident.providers.json appears here without a UI change.
+    apiFetch("/api/providers")
+      .then((r) => (r.ok ? r.json() : { providers: [] }))
+      .then((d) => {
+        const list = (d.providers ?? []) as ProviderInfo[];
+        if (!list.length) return;
+        setAvailableAis(list);
+        setAis(list.filter((p) => p.configured).map((p) => p.id));
+      })
+      .catch(() => {});
   }, []);
+
+  // Server-driven when available, built-ins otherwise.
+  const aiChoices: ProviderInfo[] =
+    availableAis.length > 0
+      ? availableAis
+      : FALLBACK_AIS.map((id) => ({
+          id,
+          label: aiLabel(id),
+          color: "",
+          builtIn: true,
+          configured: true,
+          apiKeyEnv: "",
+        }));
+
+  // Chain mode with no preset: the click order IS the run order, so surface it.
+  const ordered = mode === "chain" && !preset;
 
   const toggleAi = (ai: AIName) => {
     setAis((curr) => (curr.includes(ai) ? curr.filter((a) => a !== ai) : [...curr, ai]));
@@ -381,22 +420,42 @@ export function QueryView() {
               <PresetInfo preset={presets[preset]} />
             ) : (
               <>
-                <div className="label">AI</div>
+                <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
+                  <span className="label" style={{ margin: 0 }}>
+                    AI{ordered ? " — runs in this order" : ""}
+                  </span>
+                  {ordered && ais.length > 0 && (
+                    <button className="link-button" onClick={() => setAis([])}>
+                      Clear order
+                    </button>
+                  )}
+                </div>
                 <div className="row ai-toggles">
-                  {ALL_AIS.map((ai) => {
-                    const active = ais.includes(ai);
+                  {aiChoices.map((p) => {
+                    const pos = ais.indexOf(p.id);
+                    const active = pos !== -1;
+                    const label = p.label || aiLabel(p.id);
                     return (
                       <button
-                        key={ai}
-                        onClick={() => toggleAi(ai)}
+                        key={p.id}
+                        onClick={() => toggleAi(p.id)}
                         className={active ? "primary" : "secondary"}
-                        style={{ minWidth: 120 }}
+                        style={{ minWidth: 120, opacity: p.configured ? 1 : 0.55 }}
+                        title={p.configured ? undefined : `${p.apiKeyEnv} not set — this model will error`}
                       >
-                        {aiLabel(ai)}
+                        {ordered && active ? `${pos + 1}. ${label}` : label}
+                        {!p.configured && " ⚠"}
                       </button>
                     );
                   })}
                 </div>
+                {ordered && (
+                  <div className="muted tiny" style={{ marginTop: 6 }}>
+                    {ais.length === 0
+                      ? "Click the models in the order you want them to run."
+                      : "Click to add to the end of the chain, or click again to remove. Use Clear order to start over."}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -423,7 +482,7 @@ export function QueryView() {
               ) : run?.status === "done" ? (
                 "New Chat"
               ) : mode === "chain" ? (
-                "Start chain"
+                "Start Chain"
               ) : (
                 "Ask"
               )}

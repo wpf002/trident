@@ -1,0 +1,34 @@
+[
+  {
+    "id": "grok",
+    "label": "Grok",
+    "transport": "openai-compatible",
+    "apiKeyEnv": "XAI_API_KEY",
+    "baseURL": "https://api.x.ai/v1",
+    "models": { "premium": "grok-4", "main": "grok-3", "utility": "grok-3-mini" },
+    "maxOutputTokens": 16384,
+    "color": "#5B6B7B"
+  },
+  {
+    "id": "openrouter",
+    "label": "OpenRouter",
+    "transport": "openai-compatible",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "baseURL": "https://openrouter.ai/api/v1",
+    "models": {
+      "premium": "anthropic/claude-opus-4.1",
+      "main": "meta-llama/llama-3.3-70b-instruct",
+      "utility": "mistralai/mistral-small"
+    },
+    "color": "#8A63D2"
+  },
+  {
+    "id": "ollama",
+    "label": "Ollama (local)",
+    "transport": "openai-compatible",
+    "apiKeyEnv": "OLLAMA_API_KEY",
+    "baseURL": "http://localhost:11434/v1",
+    "models": { "premium": "llama3.1:70b", "main": "llama3.1:8b", "utility": "llama3.2:3b" },
+    "color": "#4FA3A5"
+  }
+]

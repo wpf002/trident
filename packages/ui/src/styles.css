@@ -1401,3 +1401,19 @@ a:hover {
     padding: 10px 12px;
   }
 }
+
+/* Inline text button (e.g. "Clear order") — reads as a link, not a control. */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-button:hover {
+  color: var(--gold);
+  background: none;
+}

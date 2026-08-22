@@ -13,6 +13,8 @@ import {
   listSessionSummaries,
   getSessionRun,
   logSessionRun,
+  providers,
+  configuredProviderIds,
   clearSessionRuns,
   deleteSessionRun,
   aiLabel,
@@ -167,6 +169,23 @@ app.get("/api/auth/check", (_req: Request, res: Response) => {
 // interactive, step-by-step chain.
 app.get("/api/presets", (_req: Request, res: Response) => {
   res.json({ presets: CHAIN_PRESETS });
+});
+
+// Which models this instance can actually use. Driven by the provider registry,
+// so a backend added in trident.providers.json shows up in the UI with no code
+// change. `configured` reflects whether its API key is present.
+app.get("/api/providers", (_req: Request, res: Response) => {
+  const configured = new Set(configuredProviderIds());
+  res.json({
+    providers: [...providers().values()].map((p) => ({
+      id: p.id,
+      label: p.label,
+      color: p.color,
+      builtIn: p.builtIn,
+      configured: configured.has(p.id),
+      apiKeyEnv: p.apiKeyEnv,
+    })),
+  });
 });
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
